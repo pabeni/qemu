@@ -56,6 +56,12 @@
 #define VIRTIO_NET_F_MQ	22	/* Device supports Receive Flow
 					 * Steering */
 #define VIRTIO_NET_F_CTRL_MAC_ADDR 23	/* Set MAC address */
+#define VIRTIO_NET_F_GUEST_UDP_TUNNEL_GSO 46 /* Guest can handle GSO over UDP tunnel */
+#define VIRTIO_NET_F_GUEST_UDP_TUNNEL_GSO_CSUM 47 /* Guest can handle GSO over UDP
+						     tunnel with outer csum offload */
+#define VIRTIO_NET_F_HOST_UDP_TUNNEL_GSO 48 /* Host can handle GSO over UDP tunnel */
+#define VIRTIO_NET_F_HOST_UDP_TUNNEL_GSO_CSUM 49 /* Host can handle GSO over UDP
+						    tunnel with outer csum offload */
 #define VIRTIO_NET_F_DEVICE_STATS 50	/* Device can provide device-level statistics. */
 #define VIRTIO_NET_F_VQ_NOTF_COAL 52	/* Device supports virtqueue notification coalescing */
 #define VIRTIO_NET_F_NOTF_COAL	53	/* Device supports notifications coalescing */
