@@ -635,6 +635,15 @@ static int peer_has_uso(VirtIONet *n)
     return qemu_has_uso(qemu_get_queue(n->nic)->peer);
 }
 
+static int peer_has_tunnel(VirtIONet *n)
+{
+    if (!peer_has_vnet_hdr(n)) {
+        return 0;
+    }
+
+    return qemu_has_tunnel(qemu_get_queue(n->nic)->peer);
+}
+
 static void virtio_net_set_mrg_rx_bufs(VirtIONet *n, int mergeable_rx_bufs,
                                        int version_1, int hash_report)
 {
@@ -777,6 +786,11 @@ static uint64_t virtio_net_get_features(VirtIODevice *vdev, uint64_t features,
         virtio_clear_feature(&features, VIRTIO_NET_F_GUEST_USO4);
         virtio_clear_feature(&features, VIRTIO_NET_F_GUEST_USO6);
 
+        virtio_clear_feature(&features, VIRTIO_NET_F_GUEST_UDP_TUNNEL_GSO);
+        virtio_clear_feature(&features, VIRTIO_NET_F_GUEST_UDP_TUNNEL_GSO_CSUM);
+        virtio_clear_feature(&features, VIRTIO_NET_F_HOST_UDP_TUNNEL_GSO);
+        virtio_clear_feature(&features, VIRTIO_NET_F_HOST_UDP_TUNNEL_GSO_CSUM);
+
         virtio_clear_feature(&features, VIRTIO_NET_F_HASH_REPORT);
     }
 
@@ -789,6 +803,13 @@ static uint64_t virtio_net_get_features(VirtIODevice *vdev, uint64_t features,
         virtio_clear_feature(&features, VIRTIO_NET_F_HOST_USO);
         virtio_clear_feature(&features, VIRTIO_NET_F_GUEST_USO4);
         virtio_clear_feature(&features, VIRTIO_NET_F_GUEST_USO6);
+    }
+
+    if (!peer_has_tunnel(n)) {
+        virtio_clear_feature(&features, VIRTIO_NET_F_GUEST_UDP_TUNNEL_GSO);
+        virtio_clear_feature(&features, VIRTIO_NET_F_GUEST_UDP_TUNNEL_GSO_CSUM);
+        virtio_clear_feature(&features, VIRTIO_NET_F_HOST_UDP_TUNNEL_GSO);
+        virtio_clear_feature(&features, VIRTIO_NET_F_HOST_UDP_TUNNEL_GSO_CSUM);
     }
 
     if (!get_vhost_net(nc->peer)) {
@@ -4000,6 +4021,14 @@ static Property virtio_net_properties[] = {
                       VIRTIO_NET_F_GUEST_USO6, true),
     DEFINE_PROP_BIT64("host_uso", VirtIONet, host_features,
                       VIRTIO_NET_F_HOST_USO, true),
+    DEFINE_PROP_BIT64("host_tunnel", VirtIONet, host_features,
+                      VIRTIO_NET_F_HOST_UDP_TUNNEL_GSO, true),
+    DEFINE_PROP_BIT64("host_tunnel_csum", VirtIONet, host_features,
+                      VIRTIO_NET_F_HOST_UDP_TUNNEL_GSO_CSUM, true),
+    DEFINE_PROP_BIT64("guest_tunnel", VirtIONet, host_features,
+                      VIRTIO_NET_F_GUEST_UDP_TUNNEL_GSO, true),
+    DEFINE_PROP_BIT64("guest_tunnel_csum", VirtIONet, host_features,
+                      VIRTIO_NET_F_GUEST_UDP_TUNNEL_GSO_CSUM, true),
     DEFINE_PROP_END_OF_LIST(),
 };
 

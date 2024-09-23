@@ -37,6 +37,14 @@
 
 #define PATH_NET_TUN "/dev/net/tun"
 
+#ifndef TUNSETTNLOFFLOAD
+#define TUNSETTNLOFFLOAD  _IOW('T', 228, unsigned int)
+struct tun_tnl_offload {
+	__u16 offset;
+	__u8  csum;
+};
+#endif
+
 int tap_open(char *ifname, int ifname_size, int *vnet_hdr,
              int vnet_hdr_required, int mq_required, Error **errp)
 {
@@ -183,6 +191,19 @@ int tap_probe_has_uso(int fd)
         return 0;
     }
     return 1;
+}
+
+int tap_probe_has_tunnel(int fd)
+{
+   struct tun_tnl_offload tnl;
+
+   tnl.offset = sizeof(struct virtio_net_hdr);
+   tnl.csum = 1;
+
+   if (ioctl(fd, TUNSETTNLOFFLOAD, &tnl) < 0) {
+       return 0;
+   }
+   return 1;
 }
 
 void tap_fd_set_vnet_hdr_len(int fd, int len)
