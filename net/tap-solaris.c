@@ -245,6 +245,10 @@ void tap_fd_set_offload(int fd, int csum, int tso4,
 {
 }
 
+void tap_fd_set_tnl_offload(int fd, int tnl_offset, int tnl_csum)
+{
+}
+
 int tap_fd_enable(int fd)
 {
     return -1;

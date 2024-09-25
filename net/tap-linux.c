@@ -195,15 +195,25 @@ int tap_probe_has_uso(int fd)
 
 int tap_probe_has_tunnel(int fd)
 {
-   struct tun_tnl_offload tnl;
+    struct tun_tnl_offload tnl;
+    int len;
 
-   tnl.offset = sizeof(struct virtio_net_hdr);
-   tnl.csum = 1;
+    len = sizeof(struct virtio_net_hdr) +
+          sizeof(struct virtio_net_hdr_tunnel);
 
-   if (ioctl(fd, TUNSETTNLOFFLOAD, &tnl) < 0) {
-       return 0;
-   }
-   return 1;
+    if (ioctl(fd, TUNSETVNETHDRSZ, &len) == -1) {
+        return 0;
+    }
+    tnl.offset = sizeof(struct virtio_net_hdr);
+    tnl.csum = 0;
+
+    if (ioctl(fd, TUNSETTNLOFFLOAD, &tnl) < 0) {
+        return 0;
+    }
+
+    tnl.offset = 0;
+    ioctl(fd, TUNSETTNLOFFLOAD, &tnl);
+    return 1;
 }
 
 void tap_fd_set_vnet_hdr_len(int fd, int len)
@@ -285,6 +295,26 @@ void tap_fd_set_offload(int fd, int csum, int tso4,
                 fprintf(stderr, "TUNSETOFFLOAD ioctl() failed: %s\n",
                     strerror(errno));
             }
+        }
+    }
+}
+
+void tap_fd_set_tnl_offload(int fd, int tnl_offset, int tnl_csum)
+{
+    struct tun_tnl_offload tnl = {};
+
+    /* Check if our kernel supports TUNSETSETOFFLOAD */
+    if (ioctl(fd, TUNSETTNLOFFLOAD, &tnl) != 0 && errno == EINVAL) {
+        return;
+    }
+
+    tnl.offset = tnl_offset;
+    tnl.csum = !!tnl_csum;
+    if (ioctl(fd, TUNSETTNLOFFLOAD, &tnl) != 0) {
+        tnl.csum = 0;
+        if (ioctl(fd, TUNSETTNLOFFLOAD, &tnl) != 0) {
+            fprintf(stderr, "TUNSETOFFLOAD ioctl() failed: %s\n",
+                strerror(errno));
         }
     }
 }
