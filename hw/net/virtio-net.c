@@ -645,7 +645,8 @@ static int peer_has_tunnel(VirtIONet *n)
 }
 
 static void virtio_net_set_mrg_rx_bufs(VirtIONet *n, int mergeable_rx_bufs,
-                                       int version_1, int hash_report)
+                                       int version_1, int hash_report,
+                                       int tnl)
 {
     int i;
     NetClientState *nc;
@@ -662,6 +663,12 @@ static void virtio_net_set_mrg_rx_bufs(VirtIONet *n, int mergeable_rx_bufs,
             sizeof(struct virtio_net_hdr_mrg_rxbuf) :
             sizeof(struct virtio_net_hdr);
         n->rss_data.populate_hash = false;
+    }
+    if (tnl) {
+        n->guest_tnl_offset = n->guest_hdr_len;
+        n->guest_hdr_len += sizeof(struct virtio_net_hdr_tunnel);
+    } else {
+        n->guest_tnl_offset = 0;
     }
 
     for (i = 0; i < n->max_queue_pairs; i++) {
@@ -862,6 +869,9 @@ static uint64_t virtio_net_bad_features(VirtIODevice *vdev)
 
 static void virtio_net_apply_guest_offloads(VirtIONet *n)
 {
+    int tnl_offset;
+    bool tnl_csum;
+
     qemu_set_offload(qemu_get_queue(n->nic)->peer,
             !!(n->curr_guest_offloads & (1ULL << VIRTIO_NET_F_GUEST_CSUM)),
             !!(n->curr_guest_offloads & (1ULL << VIRTIO_NET_F_GUEST_TSO4)),
@@ -870,6 +880,21 @@ static void virtio_net_apply_guest_offloads(VirtIONet *n)
             !!(n->curr_guest_offloads & (1ULL << VIRTIO_NET_F_GUEST_UFO)),
             !!(n->curr_guest_offloads & (1ULL << VIRTIO_NET_F_GUEST_USO4)),
             !!(n->curr_guest_offloads & (1ULL << VIRTIO_NET_F_GUEST_USO6)));
+
+
+    if (!(n->curr_guest_offloads & (1ULL << VIRTIO_NET_F_GUEST_UDP_TUNNEL_GSO |
+                                    1ULL << VIRTIO_NET_F_HOST_UDP_TUNNEL_GSO))) {
+        tnl_offset = 0;
+        tnl_csum = false;
+    } else {
+        g_assert(n->guest_tnl_offset >= sizeof(struct virtio_net_hdr) &&
+                 n->guest_tnl_offset + sizeof(struct virtio_net_hdr_tunnel) <= n->guest_hdr_len);
+        tnl_offset = n->guest_tnl_offset;
+        tnl_csum = !!(n->curr_guest_offloads &
+                      (1ULL << VIRTIO_NET_F_GUEST_UDP_TUNNEL_GSO_CSUM));
+    }
+
+    qemu_set_tnl_offload(qemu_get_queue(n->nic)->peer, tnl_offset, tnl_csum);
 }
 
 static uint64_t virtio_net_guest_offloads_by_features(uint64_t features)
@@ -881,7 +906,13 @@ static uint64_t virtio_net_guest_offloads_by_features(uint64_t features)
         (1ULL << VIRTIO_NET_F_GUEST_ECN)  |
         (1ULL << VIRTIO_NET_F_GUEST_UFO)  |
         (1ULL << VIRTIO_NET_F_GUEST_USO4) |
-        (1ULL << VIRTIO_NET_F_GUEST_USO6);
+        (1ULL << VIRTIO_NET_F_GUEST_USO6) |
+        (1ULL << VIRTIO_NET_F_GUEST_UDP_TUNNEL_GSO) |
+        (1ULL << VIRTIO_NET_F_GUEST_UDP_TUNNEL_GSO_CSUM) |
+        (1ULL << VIRTIO_NET_F_HOST_UDP_TUNNEL_GSO); /* The guest need to know even this one,
+                                                     * to be able to compute the correct
+                                                     * hdr layout
+                                                     */
 
     return guest_offloads_mask & features;
 }
@@ -989,7 +1020,11 @@ static void virtio_net_set_features(VirtIODevice *vdev, uint64_t features)
                                virtio_has_feature(features,
                                                   VIRTIO_F_VERSION_1),
                                virtio_has_feature(features,
-                                                  VIRTIO_NET_F_HASH_REPORT));
+                                                  VIRTIO_NET_F_HASH_REPORT),
+                               virtio_has_feature(features,
+                                                  VIRTIO_NET_F_GUEST_UDP_TUNNEL_GSO) |
+                               virtio_has_feature(features,
+                                                  VIRTIO_NET_F_HOST_UDP_TUNNEL_GSO));
 
     n->rsc4_enabled = virtio_has_feature(features, VIRTIO_NET_F_RSC_EXT) &&
         virtio_has_feature(features, VIRTIO_NET_F_GUEST_TSO4);
@@ -3064,7 +3099,11 @@ static int virtio_net_post_load_device(void *opaque, int version_id)
                                virtio_vdev_has_feature(vdev,
                                                        VIRTIO_F_VERSION_1),
                                virtio_vdev_has_feature(vdev,
-                                                       VIRTIO_NET_F_HASH_REPORT));
+                                                       VIRTIO_NET_F_HASH_REPORT),
+                               virtio_vdev_has_feature(vdev,
+                                                  VIRTIO_NET_F_GUEST_UDP_TUNNEL_GSO) |
+                               virtio_vdev_has_feature(vdev,
+                                                  VIRTIO_NET_F_HOST_UDP_TUNNEL_GSO));
 
     /* MAC_TABLE_ENTRIES may be different from the saved image */
     if (n->mac_table.in_use > MAC_TABLE_ENTRIES) {
@@ -3759,7 +3798,7 @@ static void virtio_net_device_realize(DeviceState *dev, Error **errp)
 
     n->vqs[0].tx_waiting = 0;
     n->tx_burst = n->net_conf.txburst;
-    virtio_net_set_mrg_rx_bufs(n, 0, 0, 0);
+    virtio_net_set_mrg_rx_bufs(n, 0, 0, 0, 0);
     n->promisc = 1; /* for compatibility */
 
     n->mac_table.macs = g_malloc0(MAC_TABLE_ENTRIES * ETH_ALEN);

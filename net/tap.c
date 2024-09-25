@@ -282,6 +282,16 @@ static void tap_set_offload(NetClientState *nc, int csum, int tso4,
     tap_fd_set_offload(s->fd, csum, tso4, tso6, ecn, ufo, uso4, uso6);
 }
 
+static void tap_set_tnl_offload(NetClientState *nc, int tnl_offset, int tnl_csum)
+{
+    TAPState *s = DO_UPCAST(TAPState, nc, nc);
+    if (s->fd < 0) {
+        return;
+    }
+
+    tap_fd_set_tnl_offload(s->fd, tnl_offset, tnl_csum);
+}
+
 static void tap_exit_notify(Notifier *notifier, void *data)
 {
     TAPState *s = container_of(notifier, TAPState, exit);
@@ -353,6 +363,7 @@ static NetClientInfo net_tap_info = {
     .has_vnet_hdr = tap_has_vnet_hdr,
     .has_vnet_hdr_len = tap_has_vnet_hdr_len,
     .set_offload = tap_set_offload,
+    .set_tnl_offload = tap_set_tnl_offload,
     .set_vnet_hdr_len = tap_set_vnet_hdr_len,
     .set_vnet_le = tap_set_vnet_le,
     .set_vnet_be = tap_set_vnet_be,
@@ -380,6 +391,7 @@ static TAPState *net_tap_fd_init(NetClientState *peer,
     s->has_tunnel = tap_probe_has_tunnel(s->fd);
     s->enabled = true;
     tap_set_offload(&s->nc, 0, 0, 0, 0, 0, 0, 0);
+    tap_set_tnl_offload(&s->nc, 0, 0);
     /*
      * Make sure host header length is set correctly in tap:
      * it might have been modified by another instance of qemu.
