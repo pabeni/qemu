@@ -309,7 +309,7 @@ void tap_fd_set_tnl_offload(int fd, int tnl_offset, int tnl_csum)
     }
 
     tnl.offset = tnl_offset;
-    tnl.csum = !!tnl_csum;
+    tnl.csum = tnl_csum;
     if (ioctl(fd, TUNSETTNLOFFLOAD, &tnl) != 0) {
         tnl.csum = 0;
         if (ioctl(fd, TUNSETTNLOFFLOAD, &tnl) != 0) {

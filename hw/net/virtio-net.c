@@ -870,7 +870,7 @@ static uint64_t virtio_net_bad_features(VirtIODevice *vdev)
 static void virtio_net_apply_guest_offloads(VirtIONet *n)
 {
     int tnl_offset;
-    bool tnl_csum;
+    int tnl_csum;
 
     qemu_set_offload(qemu_get_queue(n->nic)->peer,
             !!(n->curr_guest_offloads & (1ULL << VIRTIO_NET_F_GUEST_CSUM)),
@@ -892,6 +892,7 @@ static void virtio_net_apply_guest_offloads(VirtIONet *n)
         tnl_offset = n->guest_tnl_offset;
         tnl_csum = !!(n->curr_guest_offloads &
                       (1ULL << VIRTIO_NET_F_GUEST_UDP_TUNNEL_GSO_CSUM));
+        tnl_csum += n->host_csum_complete << 1;
     }
 
     qemu_set_tnl_offload(qemu_get_queue(n->nic)->peer, tnl_offset, tnl_csum);
@@ -4064,6 +4065,8 @@ static Property virtio_net_properties[] = {
                       VIRTIO_NET_F_HOST_UDP_TUNNEL_GSO, true),
     DEFINE_PROP_BIT64("host_tunnel_csum", VirtIONet, host_features,
                       VIRTIO_NET_F_HOST_UDP_TUNNEL_GSO_CSUM, true),
+    DEFINE_PROP_BOOL("host_tunnel_csum_complete", VirtIONet,
+                     host_csum_complete, false),
     DEFINE_PROP_BIT64("guest_tunnel", VirtIONet, host_features,
                       VIRTIO_NET_F_GUEST_UDP_TUNNEL_GSO, true),
     DEFINE_PROP_BIT64("guest_tunnel_csum", VirtIONet, host_features,
