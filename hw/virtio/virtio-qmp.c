@@ -731,6 +731,7 @@ VirtioStatus *qmp_x_query_virtio_status(const char *path, Error **errp)
 {
     VirtIODevice *vdev;
     VirtioStatus *status;
+    uint64_t guest_features, host_features, backend_features;
 
     vdev = qmp_find_virtio_device(path);
     if (vdev == NULL) {
@@ -742,12 +743,15 @@ VirtioStatus *qmp_x_query_virtio_status(const char *path, Error **errp)
     status->name = g_strdup(vdev->name);
     status->device_id = vdev->device_id;
     status->vhost_started = vdev->vhost_started;
+    guest_features = virtio_features_to_u64(&vdev->guest_features, 0);
     status->guest_features = qmp_decode_features(vdev->device_id,
-                                                 vdev->guest_features);
+                                                 guest_features);
+    host_features = virtio_features_to_u64(&vdev->host_features, 0);
     status->host_features = qmp_decode_features(vdev->device_id,
-                                                vdev->host_features);
+                                                host_features);
+    backend_features = virtio_features_to_u64(&vdev->backend_features, 0);
     status->backend_features = qmp_decode_features(vdev->device_id,
-                                                   vdev->backend_features);
+                                                   backend_features);
 
     switch (vdev->device_endian) {
     case VIRTIO_DEVICE_ENDIAN_LITTLE:

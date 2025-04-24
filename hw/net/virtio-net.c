@@ -297,7 +297,7 @@ static void virtio_net_vhost_status(VirtIONet *n, uint8_t status)
             qemu_net_queue_purge(qnc->incoming_queue, qnc->peer);
         }
 
-        if (virtio_has_feature(vdev->guest_features, VIRTIO_NET_F_MTU)) {
+        if (virtio_features_test_bit(&vdev->guest_features, VIRTIO_NET_F_MTU)) {
             r = vhost_net_set_mtu(get_vhost_net(nc->peer), n->net_conf.mtu);
             if (r < 0) {
                 error_report("%uBytes MTU not supported by the backend",
@@ -799,7 +799,7 @@ static uint64_t virtio_net_get_features(VirtIODevice *vdev, uint64_t features,
         virtio_clear_feature(&features, VIRTIO_NET_F_RSS);
     }
     features = vhost_net_get_features(get_vhost_net(nc->peer), features);
-    vdev->backend_features = features;
+    virtio_features_from_u64(&vdev->backend_features, 0, features);
 
     if (n->mtu_bypass_backend &&
             (n->host_features & 1ULL << VIRTIO_NET_F_MTU)) {
@@ -817,7 +817,7 @@ static uint64_t virtio_net_get_features(VirtIODevice *vdev, uint64_t features,
      * helping guest to notify the new location with vDPA devices that does not
      * support it.
      */
-    if (!virtio_has_feature(vdev->backend_features, VIRTIO_NET_F_CTRL_VQ)) {
+    if (!virtio_features_test_bit(&vdev->backend_features, VIRTIO_NET_F_CTRL_VQ)) {
         virtio_clear_feature(&features, VIRTIO_NET_F_GUEST_ANNOUNCE);
     }
 
@@ -868,7 +868,8 @@ static uint64_t virtio_net_guest_offloads_by_features(uint64_t features)
 uint64_t virtio_net_supported_guest_offloads(const VirtIONet *n)
 {
     VirtIODevice *vdev = VIRTIO_DEVICE(n);
-    return virtio_net_guest_offloads_by_features(vdev->guest_features);
+    uint64_t guest_features = virtio_features_to_u64(&vdev->guest_features, 0);
+    return virtio_net_guest_offloads_by_features(guest_features);
 }
 
 typedef struct {
@@ -954,7 +955,7 @@ static void virtio_net_set_features(VirtIODevice *vdev, uint64_t features)
     int i;
 
     if (n->mtu_bypass_backend &&
-            !virtio_has_feature(vdev->backend_features, VIRTIO_NET_F_MTU)) {
+            !virtio_features_test_bit(&vdev->backend_features, VIRTIO_NET_F_MTU)) {
         features &= ~(1ULL << VIRTIO_NET_F_MTU);
     }
 
@@ -1959,13 +1960,16 @@ static ssize_t virtio_net_receive_rcu(NetClientState *nc, const uint8_t *buf,
         elem = virtqueue_pop(q->rx_vq, sizeof(VirtQueueElement));
         if (!elem) {
             if (i) {
+                char guest_features_str[VIRTIO_FEATURES_STR_SIZE];
+
                 virtio_error(vdev, "virtio-net unexpected empty queue: "
                              "i %zd mergeable %d offset %zd, size %zd, "
                              "guest hdr len %zd, host hdr len %zd "
-                             "guest features 0x%" PRIx64,
+                             "guest features %s",
                              i, n->mergeable_rx_bufs, offset, size,
                              n->guest_hdr_len, n->host_hdr_len,
-                             vdev->guest_features);
+                             virtio_features_to_str(&vdev->guest_features,
+                                                    guest_features_str));
             }
             err = -1;
             goto err;
@@ -3069,8 +3073,8 @@ static void virtio_net_set_multiqueue(VirtIONet *n, int multiqueue)
 static int virtio_net_pre_load_queues(VirtIODevice *vdev)
 {
     virtio_net_set_multiqueue(VIRTIO_NET(vdev),
-                              virtio_has_feature(vdev->guest_features, VIRTIO_NET_F_RSS) ||
-                              virtio_has_feature(vdev->guest_features, VIRTIO_NET_F_MQ));
+                              virtio_features_test_bit(&vdev->guest_features, VIRTIO_NET_F_RSS) ||
+                              virtio_features_test_bit(&vdev->guest_features, VIRTIO_NET_F_MQ));
 
     return 0;
 }
@@ -3583,9 +3587,13 @@ static void virtio_net_guest_notifier_mask(VirtIODevice *vdev, int idx,
 
 static void virtio_net_set_config_size(VirtIONet *n, uint64_t host_features)
 {
-    virtio_add_feature(&host_features, VIRTIO_NET_F_MAC);
+    VirtIOFeatures features;
 
-    n->config_size = virtio_get_config_size(&cfg_size_params, host_features);
+    virtio_add_feature(&host_features, VIRTIO_NET_F_MAC);
+    virtio_features_zero(&features);
+    virtio_features_from_u64(&features, 0, host_features);
+
+    n->config_size = virtio_get_config_size(&cfg_size_params, &features);
 }
 
 void virtio_net_set_netclient_name(VirtIONet *n, const char *name,

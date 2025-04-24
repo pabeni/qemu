@@ -163,11 +163,12 @@ static uint64_t virtio_mmio_read(void *opaque, hwaddr offset, unsigned size)
             if (proxy->host_features_sel) {
                 return 0;
             } else {
-                return vdev->host_features;
+                return virtio_features_to_u64(&vdev->host_features, 0);
             }
         } else {
             VirtioDeviceClass *vdc = VIRTIO_DEVICE_GET_CLASS(vdev);
-            return (vdev->host_features & ~vdc->legacy_features)
+            uint64_t hfeat = virtio_features_to_u64(&vdev->host_features, 0);
+            return (hfeat & ~vdc->legacy_features)
                 >> (32 * proxy->host_features_sel);
         }
     case VIRTIO_MMIO_QUEUE_NUM_MAX:
@@ -745,7 +746,7 @@ static void virtio_mmio_pre_plugged(DeviceState *d, Error **errp)
     VirtIODevice *vdev = virtio_bus_get_device(&proxy->bus);
 
     if (!proxy->legacy) {
-        virtio_add_feature(&vdev->host_features, VIRTIO_F_VERSION_1);
+        virtio_features_set_bit(&vdev->host_features, VIRTIO_F_VERSION_1);
     }
 }
 

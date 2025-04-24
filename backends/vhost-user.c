@@ -50,6 +50,7 @@ vhost_user_backend_start(VhostUserBackend *b)
 {
     BusState *qbus = BUS(qdev_get_parent_bus(DEVICE(b->vdev)));
     VirtioBusClass *k = VIRTIO_BUS_GET_CLASS(qbus);
+    uint64_t guest_features;
     int ret, i ;
 
     if (b->started) {
@@ -72,7 +73,8 @@ vhost_user_backend_start(VhostUserBackend *b)
         goto err_host_notifiers;
     }
 
-    b->dev.acked_features = b->vdev->guest_features;
+    guest_features = virtio_features_to_u64(&b->vdev->guest_features, 0);
+    b->dev.acked_features = guest_features;
     ret = vhost_dev_start(&b->dev, b->vdev, true);
     if (ret < 0) {
         error_report("Error start vhost dev");

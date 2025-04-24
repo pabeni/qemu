@@ -32,6 +32,7 @@ int vhost_scsi_common_start(VHostSCSICommon *vsc, Error **errp)
     VirtIODevice *vdev = VIRTIO_DEVICE(vsc);
     BusState *qbus = BUS(qdev_get_parent_bus(DEVICE(vdev)));
     VirtioBusClass *k = VIRTIO_BUS_GET_CLASS(qbus);
+    uint64_t guest_features;
 
     VirtIOSCSICommon *vs = (VirtIOSCSICommon *)vsc;
 
@@ -52,7 +53,8 @@ int vhost_scsi_common_start(VHostSCSICommon *vsc, Error **errp)
         goto err_host_notifiers;
     }
 
-    vsc->dev.acked_features = vdev->guest_features;
+    guest_features = virtio_features_to_u64(&vdev->guest_features, 0);
+    vsc->dev.acked_features = guest_features;
 
     ret = vhost_dev_prepare_inflight(&vsc->dev, vdev);
     if (ret < 0) {

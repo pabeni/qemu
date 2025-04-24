@@ -258,7 +258,7 @@ static int vhost_vdpa_device_start(VirtIODevice *vdev, Error **errp)
         goto err_host_notifiers;
     }
 
-    s->dev.acked_features = vdev->guest_features;
+    s->dev.acked_features = virtio_features_to_u64(&vdev->guest_features, 0);
 
     ret = vhost_dev_start(&s->dev, vdev, true);
     if (ret < 0) {

@@ -50,6 +50,7 @@ int vhost_vsock_common_start(VirtIODevice *vdev)
     VHostVSockCommon *vvc = VHOST_VSOCK_COMMON(vdev);
     BusState *qbus = BUS(qdev_get_parent_bus(DEVICE(vdev)));
     VirtioBusClass *k = VIRTIO_BUS_GET_CLASS(qbus);
+    uint64_t guest_features;
     int ret;
     int i;
 
@@ -70,7 +71,8 @@ int vhost_vsock_common_start(VirtIODevice *vdev)
         goto err_host_notifiers;
     }
 
-    vvc->vhost_dev.acked_features = vdev->guest_features;
+    guest_features = virtio_features_to_u64(&vdev->guest_features, 0);
+    vvc->vhost_dev.acked_features = guest_features;
     ret = vhost_dev_start(&vvc->vhost_dev, vdev, true);
     if (ret < 0) {
         error_report("Error starting vhost: %d", -ret);

@@ -483,10 +483,10 @@ static uint32_t virtio_ioport_read(VirtIOPCIProxy *proxy, uint32_t addr)
 
     switch (addr) {
     case VIRTIO_PCI_HOST_FEATURES:
-        ret = vdev->host_features;
+        ret = virtio_features_to_u64(&vdev->host_features, 0);
         break;
     case VIRTIO_PCI_GUEST_FEATURES:
-        ret = vdev->guest_features;
+        ret = virtio_features_to_u64(&vdev->guest_features, 0);
         break;
     case VIRTIO_PCI_QUEUE_PFN:
         ret = virtio_queue_get_addr(vdev, vdev->queue_sel)
@@ -1478,6 +1478,7 @@ static uint64_t virtio_pci_common_read(void *opaque, hwaddr addr,
 {
     VirtIOPCIProxy *proxy = opaque;
     VirtIODevice *vdev = virtio_bus_get_device(&proxy->bus);
+    uint64_t host_features;
     uint32_t val = 0;
     int i;
 
@@ -1493,7 +1494,8 @@ static uint64_t virtio_pci_common_read(void *opaque, hwaddr addr,
         if (proxy->dfselect <= 1) {
             VirtioDeviceClass *vdc = VIRTIO_DEVICE_GET_CLASS(vdev);
 
-            val = (vdev->host_features & ~vdc->legacy_features) >>
+            host_features = virtio_features_to_u64(&vdev->host_features, 0);
+            val = (host_features & ~vdc->legacy_features) >>
                 (32 * proxy->dfselect);
         }
         break;
@@ -1945,10 +1947,10 @@ static void virtio_pci_pre_plugged(DeviceState *d, Error **errp)
     VirtIODevice *vdev = virtio_bus_get_device(&proxy->bus);
 
     if (virtio_pci_modern(proxy)) {
-        virtio_add_feature(&vdev->host_features, VIRTIO_F_VERSION_1);
+        virtio_features_set_bit(&vdev->host_features, VIRTIO_F_VERSION_1);
     }
 
-    virtio_add_feature(&vdev->host_features, VIRTIO_F_BAD_FEATURE);
+    virtio_features_set_bit(&vdev->host_features, VIRTIO_F_BAD_FEATURE);
 }
 
 /* This is called by virtio-bus just after the device is plugged. */
@@ -1968,7 +1970,7 @@ static void virtio_pci_device_plugged(DeviceState *d, Error **errp)
      * VIRTIO_F_VERSION_1 confuses guests
      */
     if (!proxy->ignore_backend_features &&
-            !virtio_has_feature(vdev->host_features, VIRTIO_F_VERSION_1)) {
+         !virtio_features_test_bit(&vdev->host_features, VIRTIO_F_VERSION_1)) {
         virtio_pci_disable_modern(proxy);
 
         if (!legacy) {

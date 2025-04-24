@@ -35,7 +35,7 @@ static const VMStateDescription vu_snd_vmstate = {
 
 static const Property vsnd_properties[] = {
     DEFINE_PROP_CHR("chardev", VHostUserBase, chardev),
-    DEFINE_PROP_BIT64("controls", VHostUserBase,
+    DEFINE_PROP_BITVF("controls", VHostUserBase,
                       parent_obj.host_features, VIRTIO_SND_F_CTLS, false),
 };
 
@@ -48,7 +48,7 @@ static void vu_snd_base_realize(DeviceState *dev, Error **errp)
     vub->virtio_id = VIRTIO_ID_SOUND;
     vub->num_vqs = 4;
     vub->config_size = virtio_get_config_size(&cfg_size_params,
-                                              vdev->host_features);
+                                              &vdev->host_features);
     vub->vq_size = 64;
 
     vubs->parent_realize(dev, errp);

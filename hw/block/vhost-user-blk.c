@@ -135,6 +135,7 @@ static int vhost_user_blk_start(VirtIODevice *vdev, Error **errp)
     VHostUserBlk *s = VHOST_USER_BLK(vdev);
     BusState *qbus = BUS(qdev_get_parent_bus(DEVICE(vdev)));
     VirtioBusClass *k = VIRTIO_BUS_GET_CLASS(qbus);
+    uint64_t guest_features;
     int i, ret;
 
     if (!k->set_guest_notifiers) {
@@ -154,7 +155,8 @@ static int vhost_user_blk_start(VirtIODevice *vdev, Error **errp)
         goto err_host_notifiers;
     }
 
-    s->dev.acked_features = vdev->guest_features;
+    guest_features = virtio_features_to_u64(&vdev->guest_features, 0);
+    s->dev.acked_features = guest_features;
 
     ret = vhost_dev_prepare_inflight(&s->dev, vdev);
     if (ret < 0) {
@@ -476,7 +478,7 @@ static void vhost_user_blk_device_realize(DeviceState *dev, Error **errp)
     }
 
     config_size = virtio_get_config_size(&virtio_blk_cfg_size_params,
-                                         vdev->host_features);
+                                         &vdev->host_features);
     virtio_init(vdev, VIRTIO_ID_BLOCK, config_size);
 
     s->virtqs = g_new(VirtQueue *, s->num_queues);
@@ -575,11 +577,11 @@ static const Property vhost_user_blk_properties[] = {
     DEFINE_PROP_UINT16("num-queues", VHostUserBlk, num_queues,
                        VHOST_USER_BLK_AUTO_NUM_QUEUES),
     DEFINE_PROP_UINT32("queue-size", VHostUserBlk, queue_size, 128),
-    DEFINE_PROP_BIT64("config-wce", VHostUserBlk, parent_obj.host_features,
+    DEFINE_PROP_BITVF("config-wce", VHostUserBlk, parent_obj.host_features,
                       VIRTIO_BLK_F_CONFIG_WCE, true),
-    DEFINE_PROP_BIT64("discard", VHostUserBlk, parent_obj.host_features,
+    DEFINE_PROP_BITVF("discard", VHostUserBlk, parent_obj.host_features,
                       VIRTIO_BLK_F_DISCARD, true),
-    DEFINE_PROP_BIT64("write-zeroes", VHostUserBlk, parent_obj.host_features,
+    DEFINE_PROP_BITVF("write-zeroes", VHostUserBlk, parent_obj.host_features,
                       VIRTIO_BLK_F_WRITE_ZEROES, true),
 };
 

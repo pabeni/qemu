@@ -1694,6 +1694,7 @@ static void virtio_blk_device_realize(DeviceState *dev, Error **errp)
     VirtIODevice *vdev = VIRTIO_DEVICE(dev);
     VirtIOBlock *s = VIRTIO_BLK(dev);
     VirtIOBlkConf *conf = &s->conf;
+    VirtIOFeatures host_features;
     BlockDriverState *bs;
     Error *err = NULL;
     unsigned i;
@@ -1767,8 +1768,10 @@ static void virtio_blk_device_realize(DeviceState *dev, Error **errp)
         return;
     }
 
+    virtio_features_zero(&host_features);
+    virtio_features_from_u64(&host_features, 0, s->host_features);
     s->config_size = virtio_get_config_size(&virtio_blk_cfg_size_params,
-                                            s->host_features);
+                                            &host_features);
     virtio_init(vdev, VIRTIO_ID_BLOCK, s->config_size);
 
     qemu_mutex_init(&s->rq_lock);

@@ -56,6 +56,7 @@ static void vuf_start(VirtIODevice *vdev)
     VHostUserFS *fs = VHOST_USER_FS(vdev);
     BusState *qbus = BUS(qdev_get_parent_bus(DEVICE(vdev)));
     VirtioBusClass *k = VIRTIO_BUS_GET_CLASS(qbus);
+    uint64_t guest_features;
     int ret;
     int i;
 
@@ -76,7 +77,8 @@ static void vuf_start(VirtIODevice *vdev)
         goto err_host_notifiers;
     }
 
-    fs->vhost_dev.acked_features = vdev->guest_features;
+    guest_features = virtio_features_to_u64(&vdev->guest_features, 0);
+    fs->vhost_dev.acked_features = guest_features;
     ret = vhost_dev_start(&fs->vhost_dev, vdev, true);
     if (ret < 0) {
         error_report("Error starting vhost: %d", -ret);

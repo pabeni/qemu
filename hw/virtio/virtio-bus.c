@@ -63,8 +63,7 @@ void virtio_bus_device_plugged(VirtIODevice *vdev, Error **errp)
 
     /* Get the features of the plugged device. */
     assert(vdc->get_features != NULL);
-    vdev->host_features = vdc->get_features(vdev, vdev->host_features,
-                                            &local_err);
+    virtio_get_host_features(vdev, vdc, &local_err);
     if (local_err) {
         error_propagate(errp, local_err);
         return;
@@ -86,7 +85,7 @@ void virtio_bus_device_plugged(VirtIODevice *vdev, Error **errp)
          * device operational. If the driver does not accept IOMMU_PLATFORM
          * we fail the device.
          */
-        virtio_add_feature(&vdev->host_features, VIRTIO_F_IOMMU_PLATFORM);
+        virtio_features_set_bit(&vdev->host_features, VIRTIO_F_IOMMU_PLATFORM);
         if (klass->get_dma_as) {
             vdev->dma_as = klass->get_dma_as(qbus->parent);
             if (!vdev_has_iommu && vdev->dma_as != &address_space_memory) {

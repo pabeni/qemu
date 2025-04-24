@@ -16,6 +16,7 @@
 
 #include "exec/memory.h"
 #include "hw/qdev-core.h"
+#include "hw/virtio/virtio-features.h"
 #include "net/net.h"
 #include "migration/vmstate.h"
 #include "qemu/event_notifier.h"
@@ -56,7 +57,7 @@ typedef struct VirtIOConfigSizeParams {
 } VirtIOConfigSizeParams;
 
 size_t virtio_get_config_size(const VirtIOConfigSizeParams *params,
-                              uint64_t host_features);
+                              const VirtIOFeatures *host_features);
 
 typedef struct VirtQueue VirtQueue;
 
@@ -121,9 +122,9 @@ struct VirtIODevice
      * backend (e.g. vhost) and could potentially be a subset of the
      * total feature set offered by QEMU.
      */
-    uint64_t host_features;
-    uint64_t guest_features;
-    uint64_t backend_features;
+    VirtIOFeatures host_features;
+    VirtIOFeatures guest_features;
+    VirtIOFeatures backend_features;
 
     size_t config_len;
     void *config;
@@ -366,6 +367,7 @@ void virtio_queue_reset(VirtIODevice *vdev, uint32_t queue_index);
 void virtio_queue_enable(VirtIODevice *vdev, uint32_t queue_index);
 void virtio_update_irq(VirtIODevice *vdev);
 int virtio_set_features(VirtIODevice *vdev, uint64_t val);
+int virtio_set_features_ex(VirtIODevice *vdev, const VirtIOFeatures *val);
 
 /* Base devices.  */
 typedef struct VirtIOBlkConf VirtIOBlkConf;
@@ -376,21 +378,21 @@ typedef struct VirtIOSCSIConf VirtIOSCSIConf;
 typedef struct VirtIORNGConf VirtIORNGConf;
 
 #define DEFINE_VIRTIO_COMMON_FEATURES(_state, _field) \
-    DEFINE_PROP_BIT64("indirect_desc", _state, _field,    \
+    DEFINE_PROP_BITVF("indirect_desc", _state, _field,    \
                       VIRTIO_RING_F_INDIRECT_DESC, true), \
-    DEFINE_PROP_BIT64("event_idx", _state, _field,        \
+    DEFINE_PROP_BITVF("event_idx", _state, _field,        \
                       VIRTIO_RING_F_EVENT_IDX, true),     \
-    DEFINE_PROP_BIT64("notify_on_empty", _state, _field,  \
+    DEFINE_PROP_BITVF("notify_on_empty", _state, _field,  \
                       VIRTIO_F_NOTIFY_ON_EMPTY, true), \
-    DEFINE_PROP_BIT64("any_layout", _state, _field, \
+    DEFINE_PROP_BITVF("any_layout", _state, _field, \
                       VIRTIO_F_ANY_LAYOUT, true), \
-    DEFINE_PROP_BIT64("iommu_platform", _state, _field, \
+    DEFINE_PROP_BITVF("iommu_platform", _state, _field, \
                       VIRTIO_F_IOMMU_PLATFORM, false), \
-    DEFINE_PROP_BIT64("packed", _state, _field, \
+    DEFINE_PROP_BITVF("packed", _state, _field, \
                       VIRTIO_F_RING_PACKED, false), \
-    DEFINE_PROP_BIT64("queue_reset", _state, _field, \
+    DEFINE_PROP_BITVF("queue_reset", _state, _field, \
                       VIRTIO_F_RING_RESET, true), \
-    DEFINE_PROP_BIT64("in_order", _state, _field, \
+    DEFINE_PROP_BITVF("in_order", _state, _field, \
                       VIRTIO_F_IN_ORDER, false)
 
 hwaddr virtio_queue_get_desc_addr(VirtIODevice *vdev, int n);
@@ -449,13 +451,27 @@ static inline bool virtio_has_feature(uint64_t features, unsigned int fbit)
 static inline bool virtio_vdev_has_feature(const VirtIODevice *vdev,
                                            unsigned int fbit)
 {
-    return virtio_has_feature(vdev->guest_features, fbit);
+    return virtio_features_test_bit(&vdev->guest_features, fbit);
 }
 
 static inline bool virtio_host_has_feature(VirtIODevice *vdev,
                                            unsigned int fbit)
 {
-    return virtio_has_feature(vdev->host_features, fbit);
+    return virtio_features_test_bit(&vdev->host_features, fbit);
+}
+
+static inline void virtio_get_host_features(VirtIODevice *vdev,
+                                            VirtioDeviceClass *vdc,
+                                            Error **errp)
+{
+    uint64_t host_features64 = virtio_features_to_u64(&vdev->host_features, 0);
+    VirtIOFeatures new_host_features;
+
+    virtio_features_zero(&new_host_features);
+    virtio_features_from_u64(&new_host_features, 0,
+                             vdc->get_features(vdev, host_features64,
+                                               errp));
+    vdev->host_features = new_host_features;
 }
 
 static inline bool virtio_is_big_endian(VirtIODevice *vdev)

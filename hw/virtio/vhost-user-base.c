@@ -22,6 +22,7 @@ static void vub_start(VirtIODevice *vdev)
     BusState *qbus = BUS(qdev_get_parent_bus(DEVICE(vdev)));
     VirtioBusClass *k = VIRTIO_BUS_GET_CLASS(qbus);
     VHostUserBase *vub = VHOST_USER_BASE(vdev);
+    uint64_t features;
     int ret, i;
 
     if (!k->set_guest_notifiers) {
@@ -41,7 +42,8 @@ static void vub_start(VirtIODevice *vdev)
         goto err_host_notifiers;
     }
 
-    vub->vhost_dev.acked_features = vdev->guest_features;
+    features = virtio_features_to_u64(&vdev->guest_features, 0);
+    vub->vhost_dev.acked_features = features;
 
     ret = vhost_dev_start(&vub->vhost_dev, vdev, true);
     if (ret < 0) {
