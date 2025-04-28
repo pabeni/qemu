@@ -3100,7 +3100,9 @@ static int virtio_set_features_nocheck(VirtIODevice *vdev,
     bad = !virtio_features_equal(&tmp, &zero);
 
     virtio_features_and(&tmp, val, &vdev->host_features);
-    if (k->set_features) {
+    if (k->set_features_ex) {
+        k_set_features_ex(vdev, &tmp);
+    } else if (k->set_features) {
         k->set_features(vdev, virtio_features_to_u64(&tmp, 0));
     }
     vdev->guest_features = tmp;

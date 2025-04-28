@@ -182,7 +182,12 @@ struct VirtioDeviceClass {
                              uint64_t requested_features,
                              Error **errp);
     uint64_t (*bad_features)(VirtIODevice *vdev);
+    /* Either 64bits or _ex variants */
     void (*set_features)(VirtIODevice *vdev, uint64_t val);
+    void (*get_features_ex)(VirtIODevice *vdev,
+                            VirtIOFeatures *host_features,
+                            Error **errp);
+    void (*set_features_ex)(VirtIODevice *vdev, VirtIOFeatures *features);
     int (*validate_features)(VirtIODevice *vdev);
     void (*get_config)(VirtIODevice *vdev, uint8_t *config);
     void (*set_config)(VirtIODevice *vdev, const uint8_t *config);
@@ -464,7 +469,14 @@ static inline void virtio_get_host_features(VirtIODevice *vdev,
                                             VirtioDeviceClass *vdc,
                                             Error **errp)
 {
-    uint64_t host_features64 = virtio_features_to_u64(&vdev->host_features, 0);
+    uint64_t host_features64;
+
+    if (vdc->get_features_ex) {
+        vdc->get_features(vdev, &vdev->host_features, errp);
+        return;
+    }
+
+    host_features64 = virtio_features_to_u64(&vdev->host_features, 0);
     VirtIOFeatures new_host_features;
 
     virtio_features_zero(&new_host_features);
