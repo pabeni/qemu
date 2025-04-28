@@ -1,5 +1,6 @@
 #include "qemu/osdep.h"
 #include "hw/qdev-properties.h"
+#include "hw/virtio/virtio-features.h"
 #include "qapi/error.h"
 #include "qapi/qapi-types-misc.h"
 #include "qobject/qlist.h"
@@ -225,6 +226,50 @@ const PropertyInfo qdev_prop_bit64 = {
     .set_default_value = set_default_value_bool,
 };
 
+/* VirtioFeature */
+
+static void vf_prop_set(Object *obj, const Property *props, bool val)
+{
+    VirtIOFeatures *vf = object_field_prop_ptr(obj, props);
+    assert(props->info == &qdev_prop_bitvf);
+    if (val) {
+        virtio_features_set_bit(vf, props->bitnr);
+    } else {
+        virtio_features_clear_bit(vf, props->bitnr);
+    }
+}
+
+static void prop_get_bitvf(Object *obj, Visitor *v, const char *name,
+                           void *opaque, Error **errp)
+{
+    const Property *prop = opaque;
+    VirtIOFeatures *vf = object_field_prop_ptr(obj, prop);
+    bool value;
+
+    assert(prop->info == &qdev_prop_bitvf);
+    value = virtio_features_test_bit(vf, prop->bitnr);
+    visit_type_bool(v, name, &value, errp);
+}
+
+static void prop_set_bitvf(Object *obj, Visitor *v, const char *name,
+                           void *opaque, Error **errp)
+{
+    const Property *prop = opaque;
+    bool value;
+
+    if (!visit_type_bool(v, name, &value, errp)) {
+        return;
+    }
+    vf_prop_set(obj, prop, value);
+}
+
+const PropertyInfo qdev_prop_bitvf = {
+    .type  = "bool",
+    .description = "on/off",
+    .get   = prop_get_bitvf,
+    .set   = prop_set_bitvf,
+    .set_default_value = set_default_value_bool,
+};
 /* --- bool --- */
 
 static void get_bool(Object *obj, Visitor *v, const char *name, void *opaque,
