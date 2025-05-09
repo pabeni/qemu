@@ -100,6 +100,19 @@ extern const PropertyInfo qdev_prop_link;
                 .set_default = true,                              \
                 .defval.u  = (bool)_defval)
 
+#ifdef CONFIG_INT128
+extern const PropertyInfo qdev_prop_bitvf;
+
+#define DEFINE_PROP_BITVF(_name, _state, _field, _bit, _defval)   \
+    DEFINE_PROP(_name, _state, _field, qdev_prop_bitvf,           \
+                 virtio_features_t,                               \
+                .bitnr    = (_bit),                               \
+                .set_default = true,                              \
+                .defval.u  = (bool)_defval)
+#else
+#define qdev_prop_bitvf qdev_prop_bit64
+#endif
+
 #define DEFINE_PROP_BOOL(_name, _state, _field, _defval)     \
     DEFINE_PROP(_name, _state, _field, qdev_prop_bool, bool, \
                 .set_default = true,                         \
