@@ -2346,7 +2346,7 @@ void virtio_reset(void *opaque)
     vdev->start_on_kick = false;
     vdev->started = false;
     vdev->broken = false;
-    vdev->guest_features = 0;
+    vdev->guest_features_ex = 0;
     vdev->queue_sel = 0;
     vdev->status = 0;
     vdev->disabled = false;
@@ -3239,7 +3239,7 @@ virtio_load(VirtIODevice *vdev, QEMUFile *f, int version_id)
      * Note: devices should always test host features in future - don't create
      * new dependencies like this.
      */
-    vdev->guest_features = features;
+    vdev->guest_features_ex = features;
 
     config_len = qemu_get_be32(f);
 
