@@ -825,6 +825,22 @@ void qemu_put_be64(QEMUFile *f, uint64_t v)
     qemu_put_be32(f, v);
 }
 
+#ifdef CONFIG_INT128
+void qemu_put_be128(QEMUFile *f, __uint128_t v)
+{
+    qemu_put_be64(f, v >> 64);
+    qemu_put_be64(f, v);
+}
+
+__uint128_t qemu_get_be128(QEMUFile *f)
+{
+    __uint128_t v;
+    v = (__uint128_t)qemu_get_be64(f) << 64;
+    v |= qemu_get_be64(f);
+    return v;
+}
+#endif
+
 unsigned int qemu_get_be16(QEMUFile *f)
 {
     unsigned int v;

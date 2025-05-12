@@ -903,6 +903,17 @@ extern const VMStateInfo vmstate_info_qlist;
 #define VMSTATE_UINT64_V(_f, _s, _v)                                  \
     VMSTATE_SINGLE(_f, _s, _v, vmstate_info_uint64, uint64_t)
 
+#ifdef CONFIG_INT128
+#define VMSTATE_UINT128_V(_f, _s, _v)                                 \
+    VMSTATE_SINGLE(_f, _s, _v, vmstate_info_uint128, __uint128_t)
+#define VMSTATE_UINT128(_f, _s)                                       \
+    VMSTATE_UINT128_V(_f, _s, 0)
+#define VMSTATE_UINT128_TEST(_f, _s, _t)                              \
+    VMSTATE_SINGLE_TEST(_f, _s, _t, 0, vmstate_info_int128, __int128_t)
+
+extern const VMStateInfo vmstate_info_uint128;
+#endif
+
 #define VMSTATE_FD_V(_f, _s, _v)                                  \
     VMSTATE_SINGLE(_f, _s, _v, vmstate_info_fd, int32_t)
 

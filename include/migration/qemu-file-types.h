@@ -92,6 +92,21 @@ static inline void qemu_get_8s(QEMUFile *f, uint8_t *pv)
     *pv = qemu_get_byte(f);
 }
 
+#ifdef CONFIG_INT128
+void qemu_put_be128(QEMUFile *f, __uint128_t v);
+__uint128_t qemu_get_be128(QEMUFile *f);
+
+static inline void qemu_put_be128s(QEMUFile *f, const __uint128_t *pv)
+{
+    qemu_put_be128(f, *pv);
+}
+
+static inline void qemu_get_be128s(QEMUFile *f, __uint128_t *pv)
+{
+    *pv = qemu_get_be128(f);
+}
+#endif
+
 /* Signed versions for type safety */
 static inline void qemu_put_sbe16(QEMUFile *f, int v)
 {
