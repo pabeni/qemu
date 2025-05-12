@@ -121,7 +121,8 @@ static const int *vhost_net_get_feature_bits(struct vhost_net *net)
     return feature_bits;
 }
 
-uint64_t vhost_net_get_features(struct vhost_net *net, uint64_t features)
+virtio_features_t vhost_net_get_features(struct vhost_net *net,
+                                         virtio_features_t features)
 {
     return vhost_get_features(&net->dev, vhost_net_get_feature_bits(net),
             features);
@@ -137,7 +138,7 @@ int vhost_net_set_config(struct vhost_net *net, const uint8_t *data,
     return vhost_dev_set_config(&net->dev, data, offset, size, flags);
 }
 
-void vhost_net_ack_features(struct vhost_net *net, uint64_t features)
+void vhost_net_ack_features(struct vhost_net *net, virtio_features_t features)
 {
     net->dev.acked_features = net->dev.backend_features;
     vhost_ack_features(&net->dev, vhost_net_get_feature_bits(net), features);
@@ -148,7 +149,7 @@ uint64_t vhost_net_get_max_queues(VHostNetState *net)
     return net->dev.max_queues;
 }
 
-uint64_t vhost_net_get_acked_features(VHostNetState *net)
+virtio_features_t vhost_net_get_acked_features(VHostNetState *net)
 {
     return net->dev.acked_features;
 }
@@ -317,10 +318,11 @@ static int vhost_net_get_fd(NetClientState *backend)
 
 struct vhost_net *vhost_net_init(VhostNetOptions *options)
 {
+    virtio_features_t missing_features;
     int r;
     bool backend_kernel = options->backend_type == VHOST_BACKEND_TYPE_KERNEL;
     struct vhost_net *net = g_new0(struct vhost_net, 1);
-    uint64_t features = 0;
+    virtio_features_t features = 0;
     Error *local_err = NULL;
 
     if (!options->net_backend) {
@@ -361,12 +363,14 @@ struct vhost_net *vhost_net_init(VhostNetOptions *options)
     if (backend_kernel) {
         if (!qemu_has_vnet_hdr_len(options->net_backend,
                                sizeof(struct virtio_net_hdr_mrg_rxbuf))) {
-            net->dev.features &= ~(1ULL << VIRTIO_NET_F_MRG_RXBUF);
+            net->dev.features &= ~VIRTIO_BIT(VIRTIO_NET_F_MRG_RXBUF);
         }
-        if (~net->dev.features & net->dev.backend_features) {
-            fprintf(stderr, "vhost lacks feature mask 0x%" PRIx64
-                   " for backend\n",
-                   (uint64_t)(~net->dev.features & net->dev.backend_features));
+
+        missing_features = ~net->dev.features & net->dev.backend_features;
+        if (missing_features) {
+            fprintf(stderr, "vhost lacks feature mask 0x" VIRTIO_FEATURES_FMT
+                   " for backend\n", VIRTIO_FEATURES_HI(missing_features),
+                   VIRTIO_FEATURES_LOW(missing_features));
             goto fail;
         }
     }
@@ -375,10 +379,11 @@ struct vhost_net *vhost_net_init(VhostNetOptions *options)
 #ifdef CONFIG_VHOST_NET_USER
     if (net->nc->info->type == NET_CLIENT_DRIVER_VHOST_USER) {
         features = vhost_user_get_acked_features(net->nc);
-        if (~net->dev.features & features) {
-            fprintf(stderr, "vhost lacks feature mask 0x%" PRIx64
-                    " for backend\n",
-                    (uint64_t)(~net->dev.features & features));
+        missing_features = ~net->dev.features & features;
+        if (missing_features) {
+            fprintf(stderr, "vhost lacks feature mask 0x" VIRTIO_FEATURES_FMT
+                    " for backend\n", VIRTIO_FEATURES_HI(missing_features),
+                    VIRTIO_FEATURES_LOW(missing_features));
             goto fail;
         }
     }
