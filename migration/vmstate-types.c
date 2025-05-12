@@ -315,6 +315,31 @@ const VMStateInfo vmstate_info_uint64 = {
     .put  = put_uint64,
 };
 
+/* 128 bit unsigned int */
+#ifdef CONFIG_INT128
+static int get_uint128(QEMUFile *f, void *pv, size_t size,
+                       const VMStateField *field)
+{
+    __uint128_t *v = pv;
+    qemu_get_be128s(f, v);
+    return 0;
+}
+
+static int put_uint128(QEMUFile *f, void *pv, size_t size,
+                       const VMStateField *field, JSONWriter *vmdesc)
+{
+    __uint128_t *v = pv;
+    qemu_put_be128s(f, v);
+    return 0;
+}
+
+const VMStateInfo vmstate_info_uint128 = {
+    .name = "uint128",
+    .get  = get_uint128,
+    .put  = put_uint128,
+};
+#endif
+
 /* File descriptor communicated via SCM_RIGHTS */
 
 static int get_fd(QEMUFile *f, void *pv, size_t size,
