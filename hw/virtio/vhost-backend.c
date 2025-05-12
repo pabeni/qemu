@@ -182,12 +182,6 @@ static int vhost_kernel_get_vring_worker(struct vhost_dev *dev,
     return vhost_kernel_call(dev, VHOST_GET_VRING_WORKER, worker);
 }
 
-static int vhost_kernel_set_features(struct vhost_dev *dev,
-                                     uint64_t features)
-{
-    return vhost_kernel_call(dev, VHOST_SET_FEATURES, &features);
-}
-
 static int vhost_kernel_set_backend_cap(struct vhost_dev *dev)
 {
     uint64_t features;
@@ -210,11 +204,56 @@ static int vhost_kernel_set_backend_cap(struct vhost_dev *dev)
     return 0;
 }
 
+#ifdef CONFIG_INT128
+static int vhost_kernel_set_features_ex(struct vhost_dev *dev,
+                                     virtio_features_t features)
+{
+    uint64_t features64;
+    int r;
+
+    /* Can't check for ENOTTY, as the kernel for unknown ioctls interprets
+     * the argument as a virtio queue id and most likely errors out validating
+     * such id, instead of reporting an unknown operation.
+     */
+    r = vhost_kernel_call(dev, VHOST_SET_FEATURES_EX, &features);
+    if (!r)
+        return 0;
+
+    if (!!(features >> 64)) {
+        error_report("Setting extended features, but kernel does not support them");
+        return -EINVAL;
+    }
+    features64 = (uint64_t)features;
+    return vhost_kernel_call(dev, VHOST_SET_FEATURES, &features64);
+}
+
+static int vhost_kernel_get_features_ex(struct vhost_dev *dev,
+                                        virtio_features_t *features)
+{
+    uint64_t features64;
+    int r;
+
+    r = vhost_kernel_call(dev, VHOST_GET_FEATURES_EX, features);
+    if (!r)
+        return 0;
+
+    r = vhost_kernel_call(dev, VHOST_GET_FEATURES, &features64);
+    *features = features64;
+    return r;
+}
+#else
+static int vhost_kernel_set_features(struct vhost_dev *dev,
+                                     uint64_t features)
+{
+    return vhost_kernel_call(dev, VHOST_SET_FEATURES, &features);
+}
+
 static int vhost_kernel_get_features(struct vhost_dev *dev,
                                      uint64_t *features)
 {
     return vhost_kernel_call(dev, VHOST_GET_FEATURES, features);
 }
+#endif
 
 static int vhost_kernel_set_owner(struct vhost_dev *dev)
 {
@@ -341,8 +380,13 @@ const VhostOps kernel_ops = {
         .vhost_attach_vring_worker = vhost_kernel_attach_vring_worker,
         .vhost_new_worker = vhost_kernel_new_worker,
         .vhost_free_worker = vhost_kernel_free_worker,
+#ifdef CONFIG_INT128
+        .vhost_set_features_ex = vhost_kernel_set_features_ex,
+        .vhost_get_features_ex = vhost_kernel_get_features_ex,
+#else
         .vhost_set_features = vhost_kernel_set_features,
         .vhost_get_features = vhost_kernel_get_features,
+#endif
         .vhost_set_backend_cap = vhost_kernel_set_backend_cap,
         .vhost_set_owner = vhost_kernel_set_owner,
         .vhost_get_vq_index = vhost_kernel_get_vq_index,
