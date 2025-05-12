@@ -123,7 +123,8 @@ static const VMStateDescription vmstate_virtio_pci_modern_state_sub = {
     .fields = (const VMStateField[]) {
         VMSTATE_UINT32(dfselect, VirtIOPCIProxy),
         VMSTATE_UINT32(gfselect, VirtIOPCIProxy),
-        VMSTATE_UINT32_ARRAY(guest_features, VirtIOPCIProxy, 2),
+        VMSTATE_UINT32_ARRAY(guest_features, VirtIOPCIProxy,
+                             VIRTIO_FEATURES_WORDS),
         VMSTATE_STRUCT_ARRAY(vqs, VirtIOPCIProxy, VIRTIO_QUEUE_MAX, 0,
                              vmstate_virtio_pci_modern_queue_state,
                              VirtIOPCIQueue),
@@ -1490,10 +1491,10 @@ static uint64_t virtio_pci_common_read(void *opaque, hwaddr addr,
         val = proxy->dfselect;
         break;
     case VIRTIO_PCI_COMMON_DF:
-        if (proxy->dfselect <= 1) {
+        if (proxy->dfselect < VIRTIO_FEATURES_WORDS) {
             VirtioDeviceClass *vdc = VIRTIO_DEVICE_GET_CLASS(vdev);
 
-            val = (vdev->host_features & ~vdc->legacy_features) >>
+            val = (vdev->host_features_ex & ~vdc->legacy_features) >>
                 (32 * proxy->dfselect);
         }
         break;
@@ -1585,10 +1586,16 @@ static void virtio_pci_common_write(void *opaque, hwaddr addr,
         break;
     case VIRTIO_PCI_COMMON_GF:
         if (proxy->gfselect < ARRAY_SIZE(proxy->guest_features)) {
+            virtio_features_t features = 0;
+            int i;
+
             proxy->guest_features[proxy->gfselect] = val;
-            virtio_set_features(vdev,
-                                (((uint64_t)proxy->guest_features[1]) << 32) |
-                                proxy->guest_features[0]);
+            for (i = 0; i < VIRTIO_FEATURES_WORDS; ++i) {
+                virtio_features_t cur = proxy->guest_features[i];
+
+                features |= cur << (i * 32);
+            }
+            virtio_set_features(vdev, features);
         }
         break;
     case VIRTIO_PCI_COMMON_MSIX:
