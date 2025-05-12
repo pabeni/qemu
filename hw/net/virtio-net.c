@@ -751,44 +751,45 @@ static void virtio_net_set_queue_pairs(VirtIONet *n)
 
 static void virtio_net_set_multiqueue(VirtIONet *n, int multiqueue);
 
-static uint64_t virtio_net_get_features(VirtIODevice *vdev, uint64_t features,
-                                        Error **errp)
+static virtio_features_t virtio_net_get_features(VirtIODevice *vdev,
+                                                 virtio_features_t features,
+                                                 Error **errp)
 {
     VirtIONet *n = VIRTIO_NET(vdev);
     NetClientState *nc = qemu_get_queue(n->nic);
 
     /* Firstly sync all virtio-net possible supported features */
-    features |= n->host_features;
+    features |= n->host_features_ex;
 
-    virtio_add_feature(&features, VIRTIO_NET_F_MAC);
+    virtio_add_feature_ex(&features, VIRTIO_NET_F_MAC);
 
     if (!peer_has_vnet_hdr(n)) {
-        virtio_clear_feature(&features, VIRTIO_NET_F_CSUM);
-        virtio_clear_feature(&features, VIRTIO_NET_F_HOST_TSO4);
-        virtio_clear_feature(&features, VIRTIO_NET_F_HOST_TSO6);
-        virtio_clear_feature(&features, VIRTIO_NET_F_HOST_ECN);
+        virtio_clear_feature_ex(&features, VIRTIO_NET_F_CSUM);
+        virtio_clear_feature_ex(&features, VIRTIO_NET_F_HOST_TSO4);
+        virtio_clear_feature_ex(&features, VIRTIO_NET_F_HOST_TSO6);
+        virtio_clear_feature_ex(&features, VIRTIO_NET_F_HOST_ECN);
 
-        virtio_clear_feature(&features, VIRTIO_NET_F_GUEST_CSUM);
-        virtio_clear_feature(&features, VIRTIO_NET_F_GUEST_TSO4);
-        virtio_clear_feature(&features, VIRTIO_NET_F_GUEST_TSO6);
-        virtio_clear_feature(&features, VIRTIO_NET_F_GUEST_ECN);
+        virtio_clear_feature_ex(&features, VIRTIO_NET_F_GUEST_CSUM);
+        virtio_clear_feature_ex(&features, VIRTIO_NET_F_GUEST_TSO4);
+        virtio_clear_feature_ex(&features, VIRTIO_NET_F_GUEST_TSO6);
+        virtio_clear_feature_ex(&features, VIRTIO_NET_F_GUEST_ECN);
 
-        virtio_clear_feature(&features, VIRTIO_NET_F_HOST_USO);
-        virtio_clear_feature(&features, VIRTIO_NET_F_GUEST_USO4);
-        virtio_clear_feature(&features, VIRTIO_NET_F_GUEST_USO6);
+        virtio_clear_feature_ex(&features, VIRTIO_NET_F_HOST_USO);
+        virtio_clear_feature_ex(&features, VIRTIO_NET_F_GUEST_USO4);
+        virtio_clear_feature_ex(&features, VIRTIO_NET_F_GUEST_USO6);
 
-        virtio_clear_feature(&features, VIRTIO_NET_F_HASH_REPORT);
+        virtio_clear_feature_ex(&features, VIRTIO_NET_F_HASH_REPORT);
     }
 
     if (!peer_has_vnet_hdr(n) || !peer_has_ufo(n)) {
-        virtio_clear_feature(&features, VIRTIO_NET_F_GUEST_UFO);
-        virtio_clear_feature(&features, VIRTIO_NET_F_HOST_UFO);
+        virtio_clear_feature_ex(&features, VIRTIO_NET_F_GUEST_UFO);
+        virtio_clear_feature_ex(&features, VIRTIO_NET_F_HOST_UFO);
     }
 
     if (!peer_has_uso(n)) {
-        virtio_clear_feature(&features, VIRTIO_NET_F_HOST_USO);
-        virtio_clear_feature(&features, VIRTIO_NET_F_GUEST_USO4);
-        virtio_clear_feature(&features, VIRTIO_NET_F_GUEST_USO6);
+        virtio_clear_feature_ex(&features, VIRTIO_NET_F_HOST_USO);
+        virtio_clear_feature_ex(&features, VIRTIO_NET_F_GUEST_USO4);
+        virtio_clear_feature_ex(&features, VIRTIO_NET_F_GUEST_USO6);
     }
 
     if (!get_vhost_net(nc->peer)) {
@@ -796,10 +797,10 @@ static uint64_t virtio_net_get_features(VirtIODevice *vdev, uint64_t features,
     }
 
     if (!ebpf_rss_is_loaded(&n->ebpf_rss)) {
-        virtio_clear_feature(&features, VIRTIO_NET_F_RSS);
+        virtio_clear_feature_ex(&features, VIRTIO_NET_F_RSS);
     }
     features = vhost_net_get_features(get_vhost_net(nc->peer), features);
-    vdev->backend_features = features;
+    vdev->backend_features_ex = features;
 
     if (n->mtu_bypass_backend &&
             (n->host_features & 1ULL << VIRTIO_NET_F_MTU)) {
@@ -818,7 +819,7 @@ static uint64_t virtio_net_get_features(VirtIODevice *vdev, uint64_t features,
      * support it.
      */
     if (!virtio_has_feature(vdev->backend_features, VIRTIO_NET_F_CTRL_VQ)) {
-        virtio_clear_feature(&features, VIRTIO_NET_F_GUEST_ANNOUNCE);
+        virtio_clear_feature_ex(&features, VIRTIO_NET_F_GUEST_ANNOUNCE);
     }
 
     return features;
@@ -851,9 +852,21 @@ static void virtio_net_apply_guest_offloads(VirtIONet *n)
             !!(n->curr_guest_offloads & (1ULL << VIRTIO_NET_F_GUEST_USO6)));
 }
 
-static uint64_t virtio_net_guest_offloads_by_features(uint64_t features)
+#define VIRTIO_RESERVED_LOW    42
+#define VIRTIO_RESERVED_LENGTH 8
+#define VIRTIO_RESERVED        MAKE_64BIT_MASK(VIRTIO_RESERVED_LOW, \
+                                                VIRTIO_RESERVED_LENGTH)
+
+static uint64_t virtio_net_features_to_offload(virtio_features_t features)
 {
-    static const uint64_t guest_offloads_mask =
+    return (features & ~VIRTIO_RESERVED) |
+           (((features >> 64) & MAKE_64BIT_MASK(0, VIRTIO_RESERVED_LENGTH)) <<
+            VIRTIO_RESERVED_LOW);
+}
+
+static uint64_t virtio_net_guest_offloads_by_features(virtio_features_t features)
+{
+    static const virtio_features_t guest_offloads_mask =
         (1ULL << VIRTIO_NET_F_GUEST_CSUM) |
         (1ULL << VIRTIO_NET_F_GUEST_TSO4) |
         (1ULL << VIRTIO_NET_F_GUEST_TSO6) |
@@ -862,7 +875,7 @@ static uint64_t virtio_net_guest_offloads_by_features(uint64_t features)
         (1ULL << VIRTIO_NET_F_GUEST_USO4) |
         (1ULL << VIRTIO_NET_F_GUEST_USO6);
 
-    return guest_offloads_mask & features;
+    return guest_offloads_mask & virtio_net_features_to_offload(features);
 }
 
 uint64_t virtio_net_supported_guest_offloads(const VirtIONet *n)
@@ -947,7 +960,7 @@ static void failover_add_primary(VirtIONet *n, Error **errp)
     error_propagate(errp, err);
 }
 
-static void virtio_net_set_features(VirtIODevice *vdev, uint64_t features)
+static void virtio_net_set_features(VirtIODevice *vdev, virtio_features_t features)
 {
     VirtIONet *n = VIRTIO_NET(vdev);
     Error *err = NULL;
@@ -1065,7 +1078,7 @@ static int virtio_net_handle_offloads(VirtIONet *n, uint8_t cmd,
     }
 
     if (cmd == VIRTIO_NET_CTRL_GUEST_OFFLOADS_SET) {
-        uint64_t supported_offloads;
+        virtio_features_t supported_offloads;
 
         offloads = virtio_ldq_p(vdev, &offloads);
 
@@ -3497,7 +3510,7 @@ static const VMStateDescription vmstate_virtio_net_device = {
         VMSTATE_WITH_TMP(VirtIONet, struct VirtIONetMigTmp,
                          vmstate_virtio_net_tx_waiting),
         VMSTATE_UINT64_TEST(curr_guest_offloads, VirtIONet,
-                            has_ctrl_guest_offloads),
+                             has_ctrl_guest_offloads),
         VMSTATE_END_OF_LIST()
     },
     .subsections = (const VMStateDescription * const []) {
@@ -4146,8 +4159,8 @@ static void virtio_net_class_init(ObjectClass *klass, const void *data)
     vdc->unrealize = virtio_net_device_unrealize;
     vdc->get_config = virtio_net_get_config;
     vdc->set_config = virtio_net_set_config;
-    vdc->get_features = virtio_net_get_features;
-    vdc->set_features = virtio_net_set_features;
+    vdc->get_features_ex = virtio_net_get_features;
+    vdc->set_features_ex = virtio_net_set_features;
     vdc->bad_features = virtio_net_bad_features;
     vdc->reset = virtio_net_reset;
     vdc->queue_reset = virtio_net_queue_reset;
