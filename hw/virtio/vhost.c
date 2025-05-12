@@ -985,7 +985,7 @@ static int vhost_virtqueue_set_addr(struct vhost_dev *dev,
 static int vhost_dev_set_features(struct vhost_dev *dev,
                                   bool enable_log)
 {
-    uint64_t features = dev->acked_features;
+    virtio_features_t features = dev->acked_features_ex;
     int r;
     if (enable_log) {
         features |= 0x1ULL << VHOST_F_LOG_ALL;
@@ -998,7 +998,21 @@ static int vhost_dev_set_features(struct vhost_dev *dev,
             features |= 0x1ULL << VIRTIO_F_IOMMU_PLATFORM;
        }
     }
-    r = dev->vhost_ops->vhost_set_features(dev, features);
+
+#ifdef CONFIG_INT128
+    if ((features >> 64) && !dev->vhost_ops->vhost_set_features_ex) {
+        VHOST_OPS_DEBUG(r, "extended features without device support");
+        r = -EINVAL;
+        goto out;
+    }
+
+    if (dev->vhost_ops->vhost_set_features_ex) {
+        r = dev->vhost_ops->vhost_set_features_ex(dev, features);
+    } else
+#endif
+    {
+        r = dev->vhost_ops->vhost_set_features(dev, features);
+    }
     if (r < 0) {
         VHOST_OPS_DEBUG(r, "vhost_set_features failed");
         goto out;
@@ -1505,16 +1519,41 @@ static void vhost_virtqueue_cleanup(struct vhost_virtqueue *vq)
     }
 }
 
+static int vhost_dev_get_features(struct vhost_dev *hdev,
+                                  virtio_features_t *features)
+{
+    uint64_t features64;
+    int r;
+
+#ifdef CONFIG_INT128
+    if (hdev->vhost_ops->vhost_get_features)
+        return hdev->vhost_ops->vhost_get_features_ex(hdev, features);
+    else
+#endif
+
+    r = hdev->vhost_ops->vhost_get_features(hdev, &features64);
+    *features = features64;
+    return r;
+}
+
 int vhost_dev_init(struct vhost_dev *hdev, void *opaque,
                    VhostBackendType backend_type, uint32_t busyloop_timeout,
                    Error **errp)
 {
     unsigned int used, reserved, limit;
-    uint64_t features;
+    virtio_features_t features;
     int i, r, n_initialized_vqs = 0;
 
     hdev->vdev = NULL;
     hdev->migration_blocker = NULL;
+
+    /*
+     * Devices with no extended support could end-up touching only the low 64
+     * bits. Ensure the full features space is always initialized
+     */
+    hdev->backend_features_ex = 0;
+    hdev->acked_features_ex = 0;
+    hdev->features_ex = 0;
 
     r = vhost_set_backend_type(hdev, backend_type);
     assert(r >= 0);
@@ -1530,7 +1569,7 @@ int vhost_dev_init(struct vhost_dev *hdev, void *opaque,
         goto fail;
     }
 
-    r = hdev->vhost_ops->vhost_get_features(hdev, &features);
+    r = vhost_dev_get_features(hdev, &features);
     if (r < 0) {
         error_setg_errno(errp, -r, "vhost_get_features failed");
         goto fail;
@@ -1860,12 +1899,13 @@ static void vhost_start_config_intr(struct vhost_dev *dev)
     }
 }
 
-uint64_t vhost_get_features(struct vhost_dev *hdev, const int *feature_bits,
-                            uint64_t features)
+virtio_features_t vhost_get_features(struct vhost_dev *hdev,
+                                     const int *feature_bits,
+                                     virtio_features_t features)
 {
     const int *bit = feature_bits;
     while (*bit != VHOST_INVALID_FEATURE_BIT) {
-        uint64_t bit_mask = (1ULL << *bit);
+        virtio_features_t bit_mask = VIRTIO_BIT(*bit);
         if (!(hdev->features & bit_mask)) {
             features &= ~bit_mask;
         }
@@ -1875,11 +1915,11 @@ uint64_t vhost_get_features(struct vhost_dev *hdev, const int *feature_bits,
 }
 
 void vhost_ack_features(struct vhost_dev *hdev, const int *feature_bits,
-                        uint64_t features)
+                        virtio_features_t features)
 {
     const int *bit = feature_bits;
     while (*bit != VHOST_INVALID_FEATURE_BIT) {
-        uint64_t bit_mask = (1ULL << *bit);
+        virtio_features_t bit_mask = VIRTIO_BIT(*bit);
         if (features & bit_mask) {
             hdev->acked_features |= bit_mask;
         }

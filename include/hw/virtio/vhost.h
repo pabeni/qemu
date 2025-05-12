@@ -106,9 +106,9 @@ struct vhost_dev {
      * future use should be discouraged and the variable retired as
      * its easy to confuse with the VirtIO backend_features.
      */
-    uint64_t features;
-    uint64_t acked_features;
-    uint64_t backend_features;
+    DECLARE_FEATURES(features);
+    DECLARE_FEATURES(acked_features);
+    DECLARE_FEATURES(backend_features);
 
     /**
      * @protocol_features: is the vhost-user only feature set by
@@ -308,8 +308,9 @@ void vhost_virtqueue_mask(struct vhost_dev *hdev, VirtIODevice *vdev, int n,
  * is supported by the vhost backend (hdev->features), the supported
  * feature_bits and the requested feature set.
  */
-uint64_t vhost_get_features(struct vhost_dev *hdev, const int *feature_bits,
-                            uint64_t features);
+virtio_features_t vhost_get_features(struct vhost_dev *hdev,
+                                     const int *feature_bits,
+                                     virtio_features_t features);
 
 /**
  * vhost_ack_features() - set vhost acked_features
@@ -321,7 +322,7 @@ uint64_t vhost_get_features(struct vhost_dev *hdev, const int *feature_bits,
  * the backends advertised features and the supported feature_bits.
  */
 void vhost_ack_features(struct vhost_dev *hdev, const int *feature_bits,
-                        uint64_t features);
+                        virtio_features_t features);
 unsigned int vhost_get_max_memslots(void);
 unsigned int vhost_get_free_memslots(void);
 
