@@ -2982,6 +2982,26 @@ static const VMStateDescription vmstate_virtio_disabled = {
     }
 };
 
+#ifdef CONFIG_INT128
+static bool virtio_128bit_features_needed(void *opaque)
+{
+    VirtIODevice *vdev = opaque;
+
+    return (vdev->host_features_ex >> 64) != 0;
+}
+
+static const VMStateDescription vmstate_virtio_128bit_features = {
+    .name = "virtio/128bit_features",
+    .version_id = 1,
+    .minimum_version_id = 1,
+    .needed = &virtio_128bit_features_needed,
+    .fields = (const VMStateField[]) {
+        VMSTATE_UINT128(guest_features_ex, VirtIODevice),
+        VMSTATE_END_OF_LIST()
+    }
+};
+#endif
+
 static const VMStateDescription vmstate_virtio = {
     .name = "virtio",
     .version_id = 1,
@@ -2991,6 +3011,9 @@ static const VMStateDescription vmstate_virtio = {
     },
     .subsections = (const VMStateDescription * const []) {
         &vmstate_virtio_device_endian,
+#ifdef CONFIG_INT128
+        &vmstate_virtio_128bit_features,
+#endif
         &vmstate_virtio_64bit_features,
         &vmstate_virtio_virtqueues,
         &vmstate_virtio_ringsize,
@@ -3087,7 +3110,8 @@ const VMStateInfo  virtio_vmstate_info = {
     .put = virtio_device_put,
 };
 
-static int virtio_set_features_nocheck(VirtIODevice *vdev, uint64_t val)
+static int virtio_set_features_nocheck(VirtIODevice *vdev,
+                                       virtio_features_t val)
 {
     VirtioDeviceClass *k = VIRTIO_DEVICE_GET_CLASS(vdev);
     bool bad = (val & ~(vdev->host_features)) != 0;
@@ -3132,6 +3156,42 @@ virtio_set_features_nocheck_maybe_co(VirtIODevice *vdev, uint64_t val)
         return virtio_set_features_nocheck(vdev, val);
     }
 }
+
+#ifdef CONFIG_INT128
+typedef struct VirtioSetFeaturesExNocheckData {
+    Coroutine *co;
+    VirtIODevice *vdev;
+    __uint128_t val;
+    int ret;
+} VirtioSetFeaturesExNocheckData;
+
+static void virtio_set_features_ex_nocheck_bh(void *opaque)
+{
+    VirtioSetFeaturesExNocheckData *data = opaque;
+
+    data->ret = virtio_set_features_nocheck(data->vdev, data->val);
+    aio_co_wake(data->co);
+}
+
+static int coroutine_mixed_fn
+virtio_set_features_ex_nocheck_maybe_co(VirtIODevice *vdev, __uint128_t val)
+{
+    if (qemu_in_coroutine()) {
+        VirtioSetFeaturesExNocheckData data = {
+            .co = qemu_coroutine_self(),
+            .vdev = vdev,
+            .val = val,
+        };
+        aio_bh_schedule_oneshot(qemu_get_current_aio_context(),
+                                virtio_set_features_ex_nocheck_bh, &data);
+        qemu_coroutine_yield();
+        return data.ret;
+    } else {
+        return virtio_set_features_nocheck(vdev, val);
+    }
+}
+
+#endif
 
 int virtio_set_features(VirtIODevice *vdev, uint64_t val)
 {
@@ -3318,6 +3378,20 @@ virtio_load(VirtIODevice *vdev, QEMUFile *f, int version_id)
         vdev->device_endian = virtio_default_endian();
     }
 
+#ifdef CONFIG_INT128
+    if (virtio_128bit_features_needed(vdev)) {
+        __int128_t features128 = vdev->guest_features_ex;
+        if (virtio_set_features_ex_nocheck_maybe_co(vdev, features128) < 0) {
+            error_report("Features 0x" VIRTIO_FEATURES_FMT " unsupported. "
+                         "Allowed features: 0x" VIRTIO_FEATURES_FMT,
+                         VIRTIO_FEATURES_HI(features128),
+                         VIRTIO_FEATURES_LOW(features128),
+                         VIRTIO_FEATURES_HI(vdev->host_features_ex),
+                         VIRTIO_FEATURES_LOW(vdev->host_features_ex));
+            return -1;
+        }
+    } else
+#endif
     if (virtio_64bit_features_needed(vdev)) {
         /*
          * Subsection load filled vdev->guest_features.  Run them
