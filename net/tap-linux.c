@@ -37,6 +37,14 @@
 
 #define PATH_NET_TUN "/dev/net/tun"
 
+#ifndef TUN_F_UDP_TUNNEL_GSO
+#define TUN_F_UDP_TUNNEL_GSO       0x080
+#endif
+
+#ifndef TUN_F_UDP_TUNNEL_GSO_CSUM
+#define TUN_F_UDP_TUNNEL_GSO_CSUM  0x100
+#endif
+
 int tap_open(char *ifname, int ifname_size, int *vnet_hdr,
              int vnet_hdr_required, int mq_required, Error **errp)
 {
@@ -190,6 +198,17 @@ int tap_probe_has_uso(int fd)
 
     offload = TUN_F_CSUM | TUN_F_USO4 | TUN_F_USO6;
 
+    if (ioctl(fd, TUNSETOFFLOAD, offload) < 0) {
+        return 0;
+    }
+    return 1;
+}
+
+int tap_probe_has_tunnel(int fd)
+{
+    unsigned offload;
+
+    offload = TUN_F_CSUM | TUN_F_TSO4 | TUN_F_UDP_TUNNEL_GSO;
     if (ioctl(fd, TUNSETOFFLOAD, offload) < 0) {
         return 0;
     }
