@@ -569,13 +569,18 @@ int qemu_get_vnet_hdr_len(NetClientState *nc)
 
 void qemu_set_vnet_hdr_len(NetClientState *nc, int len)
 {
+    int len_tnl = len - sizeof(struct virtio_net_hdr_tunnel);
+
     if (!nc || !nc->info->set_vnet_hdr_len) {
         return;
     }
 
     assert(len == sizeof(struct virtio_net_hdr_mrg_rxbuf) ||
+           len_tnl == sizeof(struct virtio_net_hdr_mrg_rxbuf) ||
            len == sizeof(struct virtio_net_hdr) ||
-           len == sizeof(struct virtio_net_hdr_v1_hash));
+           len_tnl == sizeof(struct virtio_net_hdr) ||
+           len == sizeof(struct virtio_net_hdr_v1_hash) ||
+           len_tnl == sizeof(struct virtio_net_hdr_v1_hash));
 
     nc->vnet_hdr_len = len;
     nc->info->set_vnet_hdr_len(nc, len);
