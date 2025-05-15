@@ -40,6 +40,9 @@
 #include "qapi/visitor.h"
 #include "system/replay.h"
 #include "trace.h"
+#include "qemu/log.h"
+#include "qemu/log-for-trace.h"
+
 
 #define VIRTIO_PCI_REGION_SIZE(dev)     VIRTIO_PCI_CONFIG_OFF(msix_present(dev))
 
@@ -1495,6 +1498,11 @@ static uint64_t virtio_pci_common_read(void *opaque, hwaddr addr,
 
             val = (vdev->host_features_ex & ~vdc->legacy_features) >>
                 (32 * proxy->dfselect);
+            qemu_log("virtio_pci_common_read dfselect %d legacy "VIRTIO_FEATURES_FMT" host "
+                      VIRTIO_FEATURES_FMT" val %x\n", proxy->dfselect,
+                      VIRTIO_FEATURES_PRN_ARG(vdc->legacy_features),
+                      VIRTIO_FEATURES_PRN_ARG(vdev->host_features_ex),
+                      val);
         }
         break;
     case VIRTIO_PCI_COMMON_GFSELECT:
@@ -1504,6 +1512,9 @@ static uint64_t virtio_pci_common_read(void *opaque, hwaddr addr,
         if (proxy->gfselect < ARRAY_SIZE(proxy->guest_features)) {
             val = proxy->guest_features[proxy->gfselect];
         }
+        qemu_log("virtio_pci_common_read GF dfselect %d size %ld val %x\n",
+                 proxy->dfselect, ARRAY_SIZE(proxy->guest_features),
+                 val);
         break;
     case VIRTIO_PCI_COMMON_MSIX:
         val = vdev->config_vector;
@@ -1589,8 +1600,14 @@ static void virtio_pci_common_write(void *opaque, hwaddr addr,
             int i;
 
             proxy->guest_features[proxy->gfselect] = val;
-            for (i = 0; i < VIRTIO_FEATURES_WORDS; ++i)
+            qemu_log("virtio_pci_common_write");
+            for (i = 0; i < VIRTIO_FEATURES_WORDS; ++i) {
                 features |= (virtio_features_t)proxy->guest_features[i] << (i *32);
+                qemu_log(" select %d guest_features %x",
+                         i, proxy->guest_features[i]);
+            }
+            qemu_log(" features " VIRTIO_FEATURES_FMT "\n",
+                     VIRTIO_FEATURES_PRN_ARG(features));
             virtio_set_features(vdev, features);
         }
         break;

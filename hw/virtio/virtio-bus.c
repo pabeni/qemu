@@ -29,6 +29,8 @@
 #include "hw/virtio/virtio-bus.h"
 #include "hw/virtio/virtio.h"
 #include "system/address-spaces.h"
+#include "qemu/log.h"
+#include "qemu/log-for-trace.h"
 
 /* #define DEBUG_VIRTIO_BUS */
 
@@ -63,16 +65,20 @@ void virtio_bus_device_plugged(VirtIODevice *vdev, Error **errp)
 
     /* Get the features of the plugged device. */
 #ifdef CONFIG_INT128
-    if (vdc->get_features_ex)
+    if (vdc->get_features_ex) {
         vdev->host_features_ex = vdc->get_features_ex(vdev,
                                                       vdev->host_features_ex,
                                                       &local_err);
-    else
+       qemu_log("virtio_bus_device_plugged feat ex_ " VIRTIO_FEATURES_FMT "\n",
+                VIRTIO_FEATURES_PRN_ARG(vdev->host_features_ex));
+    } else
 #endif
     {
         assert(vdc->get_features != NULL);
         vdev->host_features_ex = vdc->get_features(vdev, vdev->host_features,
                                                    &local_err);
+       qemu_log("virtio_bus_device_plugged feat " VIRTIO_FEATURES_FMT "\n",
+                VIRTIO_FEATURES_PRN_ARG(vdev->host_features_ex));
     }
     if (local_err) {
         error_propagate(errp, local_err);

@@ -3115,6 +3115,8 @@ static int virtio_set_features_nocheck(VirtIODevice *vdev, virtio_features_t val
     VirtioDeviceClass *k = VIRTIO_DEVICE_GET_CLASS(vdev);
     bool bad = (val & ~(vdev->host_features_ex)) != 0;
 
+    qemu_log("virtio_set_features_nocheck val " VIRTIO_FEATURES_FMT " host_features_ex " VIRTIO_FEATURES_FMT" \n",
+             VIRTIO_FEATURES_PRN_ARG(val), VIRTIO_FEATURES_PRN_ARG(vdev->host_features_ex));
     val &= vdev->host_features_ex;
 #ifdef CONFIG_INT128
     if (!k->set_features_ex)
