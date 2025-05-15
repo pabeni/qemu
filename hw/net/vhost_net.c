@@ -25,6 +25,8 @@
 #include "qapi/error.h"
 #include "qemu/error-report.h"
 #include "qemu/main-loop.h"
+#include "qemu/log.h"
+#include "qemu/log-for-trace.h"
 
 #include <sys/socket.h>
 #include <net/if.h>
@@ -145,6 +147,10 @@ int vhost_net_set_config(struct vhost_net *net, const uint8_t *data,
 void vhost_net_ack_features(struct vhost_net *net, virtio_features_t features)
 {
     net->dev.acked_features = net->dev.backend_features;
+    qemu_log("vhost_net_ack_features backend " VIRTIO_FEATURES_FMT " features " VIRTIO_FEATURES_FMT"\n",
+             VIRTIO_FEATURES_HI(net->dev.backend_features),
+             VIRTIO_FEATURES_LOW(net->dev.backend_features),
+             VIRTIO_FEATURES_HI(features), VIRTIO_FEATURES_LOW(features));
     vhost_ack_features(&net->dev, vhost_net_get_feature_bits(net), features);
 }
 

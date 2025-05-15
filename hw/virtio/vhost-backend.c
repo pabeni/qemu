@@ -14,6 +14,8 @@
 #include "qemu/error-report.h"
 #include "qemu/main-loop.h"
 #include "standard-headers/linux/vhost_types.h"
+#include "qemu/log.h"
+#include "qemu/log-for-trace.h"
 
 #include "hw/virtio/vhost-vdpa.h"
 #ifdef CONFIG_VHOST_KERNEL
@@ -217,6 +219,9 @@ static int vhost_kernel_set_features_ex(struct vhost_dev *dev,
      * such id, instead of reporting an unknown operation.
      */
     r = vhost_kernel_call(dev, VHOST_SET_FEATURES_EX, &features);
+    qemu_log("vhost_kernel_set_features_ex ret %d features " VIRTIO_FEATURES_FMT "\n",
+             r, VIRTIO_FEATURES_HI(features),
+             VIRTIO_FEATURES_LOW(features));
     if (!r) {
         return 0;
     }
@@ -226,6 +231,8 @@ static int vhost_kernel_set_features_ex(struct vhost_dev *dev,
         return -EINVAL;
     }
     features64 = (uint64_t)features;
+    qemu_log("vhost_kernel_set_features_ex 64 features %lx\n",
+             features64);
     return vhost_kernel_call(dev, VHOST_SET_FEATURES, &features64);
 }
 
@@ -236,11 +243,16 @@ static int vhost_kernel_get_features_ex(struct vhost_dev *dev,
     int r;
 
     r = vhost_kernel_call(dev, VHOST_GET_FEATURES_EX, features);
+    qemu_log("vhost_kernel_get_features_ex ret %d features " VIRTIO_FEATURES_FMT "\n",
+             r, VIRTIO_FEATURES_HI(*features),
+             VIRTIO_FEATURES_LOW(*features));
     if (!r) {
         return 0;
     }
 
     r = vhost_kernel_call(dev, VHOST_GET_FEATURES, &features64);
+    qemu_log("vhost_kernel_get_features_ex 64 ret %d features %lx\n",
+             r, features64);
     *features = features64;
     return r;
 }
