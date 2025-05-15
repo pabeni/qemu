@@ -3052,6 +3052,16 @@ int virtio_save(VirtIODevice *vdev, QEMUFile *f)
 
     qemu_put_be32(f, i);
 
+    qemu_log("virtio_save need 128 %d guest features 0x"
+             VIRTIO_FEATURES_FMT" host 0x"VIRTIO_FEATURES_FMT" backend 0x"VIRTIO_FEATURES_FMT"\n",
+             virtio_128bit_features_needed(vdev),
+             VIRTIO_FEATURES_HI(vdev->guest_features_ex),
+             VIRTIO_FEATURES_LOW(vdev->guest_features_ex),
+             VIRTIO_FEATURES_HI(vdev->host_features_ex),
+             VIRTIO_FEATURES_LOW(vdev->host_features_ex),
+             VIRTIO_FEATURES_HI(vdev->backend_features_ex),
+             VIRTIO_FEATURES_LOW(vdev->backend_features_ex));
+
     for (i = 0; i < VIRTIO_QUEUE_MAX; i++) {
         if (vdev->vq[i].vring.num == 0)
             break;
@@ -3116,6 +3126,11 @@ static int virtio_set_features_nocheck(VirtIODevice *vdev,
     VirtioDeviceClass *k = VIRTIO_DEVICE_GET_CLASS(vdev);
     bool bad = (val & ~(vdev->host_features_ex)) != 0;
 
+    qemu_log("virtio_set_features_nocheck val " VIRTIO_FEATURES_FMT " host_features_ex " VIRTIO_FEATURES_FMT" \n",
+             VIRTIO_FEATURES_HI(val),
+             VIRTIO_FEATURES_LOW(val),
+             VIRTIO_FEATURES_HI(vdev->host_features_ex),
+             VIRTIO_FEATURES_LOW(vdev->host_features_ex));
     val &= vdev->host_features_ex;
 #ifdef CONFIG_INT128
     if (!k->set_features_ex) {
@@ -3390,6 +3405,15 @@ virtio_load(VirtIODevice *vdev, QEMUFile *f, int version_id)
     }
 
 #ifdef CONFIG_INT128
+    qemu_log("pre load net 128 %d guest features 0x"
+             VIRTIO_FEATURES_FMT" host 0x"VIRTIO_FEATURES_FMT" backend 0x"VIRTIO_FEATURES_FMT"\n",
+             virtio_128bit_features_needed(vdev),
+             VIRTIO_FEATURES_HI(vdev->guest_features_ex),
+             VIRTIO_FEATURES_LOW(vdev->guest_features_ex),
+             VIRTIO_FEATURES_HI(vdev->host_features_ex),
+             VIRTIO_FEATURES_LOW(vdev->host_features_ex),
+             VIRTIO_FEATURES_HI(vdev->backend_features_ex),
+             VIRTIO_FEATURES_LOW(vdev->backend_features_ex));
     if (virtio_128bit_features_needed(vdev)) {
         __int128_t features128 = vdev->guest_features_ex;
         if (virtio_set_features_ex_nocheck_maybe_co(vdev, features128) < 0) {
@@ -3425,6 +3449,15 @@ virtio_load(VirtIODevice *vdev, QEMUFile *f, int version_id)
         }
     }
 
+    qemu_log("after load %d guest features 0x"
+             VIRTIO_FEATURES_FMT" host 0x"VIRTIO_FEATURES_FMT" backend 0x"VIRTIO_FEATURES_FMT"\n",
+             virtio_128bit_features_needed(vdev),
+             VIRTIO_FEATURES_HI(vdev->guest_features_ex),
+             VIRTIO_FEATURES_LOW(vdev->guest_features_ex),
+             VIRTIO_FEATURES_HI(vdev->host_features_ex),
+             VIRTIO_FEATURES_LOW(vdev->host_features_ex),
+             VIRTIO_FEATURES_HI(vdev->backend_features_ex),
+             VIRTIO_FEATURES_LOW(vdev->backend_features_ex));
     if (!virtio_device_started(vdev, vdev->status) &&
         !virtio_vdev_has_feature(vdev, VIRTIO_F_VERSION_1)) {
         vdev->start_on_kick = true;
