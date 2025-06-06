@@ -63,8 +63,9 @@ void virtio_bus_device_plugged(VirtIODevice *vdev, Error **errp)
 
     /* Get the features of the plugged device. */
     assert(vdc->get_features != NULL);
-    vdev->host_features = vdc->get_features(vdev, vdev->host_features,
-                                            &local_err);
+    virtio_features_from_u64(vdev->host_features_array,
+                             vdc->get_features(vdev, vdev->host_features,
+                                               &local_err));
     if (local_err) {
         error_propagate(errp, local_err);
         return;
