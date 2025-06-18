@@ -41,6 +41,9 @@
 #include "qapi/visitor.h"
 #include "system/replay.h"
 #include "trace.h"
+#include "qemu/log.h"
+#include "qemu/log-for-trace.h"
+
 
 #define VIRTIO_PCI_REGION_SIZE(dev)     VIRTIO_PCI_CONFIG_OFF(msix_present(dev))
 
@@ -118,6 +121,8 @@ static bool virtio_pci_modern_state_features128_needed(void *opaque)
     for (i = 2; i < ARRAY_SIZE(proxy->guest_features); ++i) {
         features |= proxy->guest_features[i];
     }
+    qemu_log("virtio_pci_modern_state_features128_needed %d f3 %x f4 %x\n", features,
+             proxy->guest_features[2], proxy->guest_features[3]);
     return features;
 }
 
@@ -1529,6 +1534,11 @@ static uint64_t virtio_pci_common_read(void *opaque, hwaddr addr,
             if (proxy->dfselect <= 1) {
                 val &= (~vdc->legacy_features) >> (32 * proxy->dfselect);
             }
+            qemu_log("virtio_pci_common_read dfselect %d legacy %08lx host "
+                      VIRTIO_FEATURES_FMT" val %x\n", proxy->dfselect,
+                      vdc->legacy_features,
+                      VIRTIO_FEATURES_PR(vdev->host_features_array),
+                      val);
         }
         break;
     case VIRTIO_PCI_COMMON_GFSELECT:
@@ -1538,6 +1548,9 @@ static uint64_t virtio_pci_common_read(void *opaque, hwaddr addr,
         if (proxy->gfselect < ARRAY_SIZE(proxy->guest_features)) {
             val = proxy->guest_features[proxy->gfselect];
         }
+        qemu_log("virtio_pci_common_read GF dfselect %d size %ld val %x\n",
+                 proxy->dfselect, ARRAY_SIZE(proxy->guest_features),
+                 val);
         break;
     case VIRTIO_PCI_COMMON_MSIX:
         val = vdev->config_vector;
@@ -1623,12 +1636,16 @@ static void virtio_pci_common_write(void *opaque, hwaddr addr,
             int i;
 
             proxy->guest_features[proxy->gfselect] = val;
+            qemu_log("virtio_pci_common_write");
             virtio_features_clear(features);
             for (i = 0; i < ARRAY_SIZE(proxy->guest_features); ++i) {
                 uint64_t cur = proxy->guest_features[i];
 
                 features[i >> 1] |= cur << ((i & 1) * 32);
+                qemu_log(" cur %d:%x", i, proxy->guest_features[i]);
             }
+            qemu_log(" features " VIRTIO_FEATURES_FMT "\n",
+                     VIRTIO_FEATURES_PR(features));
             virtio_set_features_ex(vdev, features);
         }
         break;
@@ -2005,6 +2022,7 @@ static void virtio_pci_device_plugged(DeviceState *d, Error **errp)
     VirtIODevice *vdev = virtio_bus_get_device(bus);
     int16_t res;
 
+    qemu_log("virtio_pci_device_plugged\n");
     /*
      * Virtio capabilities present without
      * VIRTIO_F_VERSION_1 confuses guests
@@ -2172,6 +2190,8 @@ static void virtio_pci_device_unplugged(DeviceState *d)
     bool modern_pio = proxy->flags & VIRTIO_PCI_FLAG_MODERN_PIO_NOTIFY;
 
     virtio_pci_stop_ioeventfd(proxy);
+
+    qemu_log("virtio_pci_device_unplugged\n");
 
     if (modern) {
         virtio_pci_modern_mem_region_unmap(proxy, &proxy->common);
@@ -2344,6 +2364,8 @@ static void virtio_pci_reset(DeviceState *qdev)
     VirtIOPCIProxy *proxy = VIRTIO_PCI(qdev);
     VirtioBusState *bus = VIRTIO_BUS(&proxy->bus);
     int i;
+
+    qemu_log("virtio_pci_reset\n");
 
     virtio_bus_reset(bus);
     msix_unuse_all_vectors(&proxy->pci_dev);

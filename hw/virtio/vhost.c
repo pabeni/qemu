@@ -988,6 +988,10 @@ static int vhost_dev_set_features(struct vhost_dev *dev,
        }
     }
 
+    qemu_log("vhost_dev_set_features acked " VIRTIO_FEATURES_FMT " feat " VIRTIO_FEATURES_FMT "\n",
+             VIRTIO_FEATURES_PR(dev->acked_features_array),
+             VIRTIO_FEATURES_PR(features));
+
     if (virtio_features_use_extended(features) &&
         !dev->vhost_ops->vhost_set_features_ex) {
         VHOST_OPS_DEBUG(r, "extended features without device support");
@@ -1565,6 +1569,8 @@ int vhost_dev_init(struct vhost_dev *hdev, void *opaque,
         error_setg_errno(errp, -r, "vhost_get_features failed");
         goto fail;
     }
+    qemu_log("vhost_dev_init features " VIRTIO_FEATURES_FMT "\n",
+             VIRTIO_FEATURES_PR(features));
 
     limit = hdev->vhost_ops->vhost_backend_memslots_limit(hdev);
     if (limit < MEMORY_DEVICES_SAFE_MAX_MEMSLOTS &&
@@ -1668,6 +1674,8 @@ int vhost_dev_init(struct vhost_dev *hdev, void *opaque,
         goto fail_busyloop;
     }
 
+    qemu_log("vhost_dev_init [2] features " VIRTIO_FEATURES_FMT "\n",
+             VIRTIO_FEATURES_PR(features));
     return 0;
 
 fail_busyloop:
@@ -1932,6 +1940,7 @@ void vhost_ack_features_ex(struct vhost_dev *hdev, const int *feature_bits,
 {
     const int *bit = feature_bits;
     while (*bit != VHOST_INVALID_FEATURE_BIT) {
+        qemu_log("vhost_ack_features testing bit %d mask %lx\n", *bit, (long)VIRTIO_BIT(*bit));
         if (virtio_has_feature_ex(features, *bit)) {
             virtio_add_feature_ex(hdev->acked_features_array, *bit);
         }

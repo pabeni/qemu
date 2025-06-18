@@ -14,6 +14,8 @@
 #include "qemu/error-report.h"
 #include "qemu/main-loop.h"
 #include "standard-headers/linux/vhost_types.h"
+#include "qemu/log.h"
+#include "qemu/log-for-trace.h"
 
 #include "hw/virtio/vhost-vdpa.h"
 #ifdef CONFIG_VHOST_KERNEL
@@ -226,6 +228,8 @@ static int vhost_kernel_set_features(struct vhost_dev *dev,
      * such id, instead of reporting an unknown operation.
      */
     r = vhost_kernel_call(dev, VHOST_SET_FEATURES_ARRAY, &farray);
+    qemu_log("vhost_kernel_set_features_ex ret %d features " VIRTIO_FEATURES_FMT "\n",
+             r, VIRTIO_FEATURES_PR(features));
     if (!r) {
         return 0;
     }
@@ -234,7 +238,11 @@ static int vhost_kernel_set_features(struct vhost_dev *dev,
         error_report("Trying to set extended features without kernel support");
         return -EINVAL;
     }
-    return vhost_kernel_call(dev, VHOST_SET_FEATURES, &farray.features[0]);
+
+    r = vhost_kernel_call(dev, VHOST_SET_FEATURES, &farray.features[0]);
+    qemu_log("vhost_kernel_set_features_ex 64 %d features %lx\n",
+             r, farray.features[0]);
+    return r;
 }
 
 static int vhost_kernel_get_features(struct vhost_dev *dev, uint64_t *features)
@@ -245,14 +253,19 @@ static int vhost_kernel_get_features(struct vhost_dev *dev, uint64_t *features)
     farray.count = VIRTIO_FEATURES_DWORDS;
     r = vhost_kernel_call(dev, VHOST_GET_FEATURES_ARRAY, &farray);
     if (r) {
+        qemu_log("vhost_kernel_get_features falling back to legacy get features %d\n", r);
         memset(&farray, 0, sizeof(farray));
         r = vhost_kernel_call(dev, VHOST_GET_FEATURES, &farray.features[0]);
+        qemu_log("vhost_kernel_get_features 64 ret %d features %lx\n",
+             r, farray.features[0]);
     }
     if (r) {
         return r;
     }
 
     virtio_features_copy(features, farray.features);
+    qemu_log("vhost_kernel_get_features features " VIRTIO_FEATURES_FMT "\n",
+             VIRTIO_FEATURES_PR(features));
     return 0;
 }
 

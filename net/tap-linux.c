@@ -24,6 +24,7 @@
  */
 
 #include "qemu/osdep.h"
+#include "qemu/log.h"
 #include "tap_int.h"
 #include "tap-linux.h"
 #include "net/tap.h"
@@ -209,6 +210,7 @@ int tap_probe_has_tunnel(int fd)
 
 void tap_fd_set_vnet_hdr_len(int fd, int len)
 {
+    qemu_log("tap_fd_set_vnet_hdr_len size %d\n", len);
     if (ioctl(fd, TUNSETVNETHDRSZ, &len) == -1) {
         fprintf(stderr, "TUNSETVNETHDRSZ ioctl() failed: %s. Exiting.\n",
                 strerror(errno));
