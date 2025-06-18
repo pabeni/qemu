@@ -40,6 +40,9 @@
 #include "qapi/visitor.h"
 #include "system/replay.h"
 #include "trace.h"
+#include "qemu/log.h"
+#include "qemu/log-for-trace.h"
+
 
 #define VIRTIO_PCI_REGION_SIZE(dev)     VIRTIO_PCI_CONFIG_OFF(msix_present(dev))
 
@@ -1565,6 +1568,11 @@ static uint64_t virtio_pci_common_read(void *opaque, hwaddr addr,
             if (proxy->dfselect <= 1) {
                 val &= (~vdc->legacy_features) >> (32 * proxy->dfselect);
             }
+            qemu_log("virtio_pci_common_read dfselect %d legacy %08lx host "
+                      VIRTIO_FEATURES_FMT" val %x\n", proxy->dfselect,
+                      vdc->legacy_features,
+                      VIRTIO_FEATURES_PR(vdev->host_features_array),
+                      val);
         }
         break;
     case VIRTIO_PCI_COMMON_GFSELECT:
@@ -1574,6 +1582,9 @@ static uint64_t virtio_pci_common_read(void *opaque, hwaddr addr,
         if (proxy->gfselect < ARRAY_SIZE(proxy->guest_features128)) {
             val = proxy->guest_features128[proxy->gfselect];
         }
+        qemu_log("virtio_pci_common_read GF dfselect %d size %ld val %x\n",
+                 proxy->dfselect, ARRAY_SIZE(proxy->guest_features),
+                 val);
         break;
     case VIRTIO_PCI_COMMON_MSIX:
         val = vdev->config_vector;
@@ -1659,12 +1670,16 @@ static void virtio_pci_common_write(void *opaque, hwaddr addr,
             int i;
 
             proxy->guest_features128[proxy->gfselect] = val;
+            qemu_log("virtio_pci_common_write");
             virtio_features_clear(features);
             for (i = 0; i < ARRAY_SIZE(proxy->guest_features128); ++i) {
                 uint64_t cur = proxy->guest_features128[i];
 
                 features[i >> 1] |= cur << ((i & 1) * 32);
+                qemu_log(" cur %d:%x", i, proxy->guest_features128[i]);
             }
+            qemu_log(" features " VIRTIO_FEATURES_FMT "\n",
+                     VIRTIO_FEATURES_PR(features));
             virtio_set_features_ex(vdev, features);
         }
         break;
