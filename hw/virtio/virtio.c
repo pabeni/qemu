@@ -3020,6 +3020,13 @@ int virtio_save(VirtIODevice *vdev, QEMUFile *f)
 
     qemu_put_be32(f, i);
 
+    qemu_log("virtio_save need 128 %d guest features 0x"
+             VIRTIO_FEATURES_FMT" host 0x"VIRTIO_FEATURES_FMT" backend 0x"VIRTIO_FEATURES_FMT"\n",
+             virtio_128bit_features_needed(vdev),
+             VIRTIO_FEATURES_PR(vdev->guest_features_array),
+             VIRTIO_FEATURES_PR(vdev->host_features_array),
+             VIRTIO_FEATURES_PR(vdev->backend_features_array));
+
     for (i = 0; i < VIRTIO_QUEUE_MAX; i++) {
         if (vdev->vq[i].vring.num == 0)
             break;
@@ -3087,6 +3094,9 @@ static int virtio_set_features_nocheck(VirtIODevice *vdev, const uint64_t *val)
     virtio_features_andnot(tmp, val, vdev->host_features_array);
     bad = !virtio_features_is_empty(tmp);
 
+    qemu_log("virtio_set_features_nocheck val " VIRTIO_FEATURES_FMT " host_features_ex " VIRTIO_FEATURES_FMT" \n",
+             VIRTIO_FEATURES_PR(val),
+             VIRTIO_FEATURES_PR(vdev->host_features_array));
     virtio_features_and(tmp, val, vdev->host_features_array);
 
     if (k->set_features_ex) {
@@ -3406,6 +3416,12 @@ virtio_load(VirtIODevice *vdev, QEMUFile *f, int version_id)
      * even more in the (far away) future
      */
     QEMU_BUILD_BUG_ON(VIRTIO_FEATURES_DWORDS != 2);
+    qemu_log("pre load net 128 %d guest features 0x"
+             VIRTIO_FEATURES_FMT" host 0x"VIRTIO_FEATURES_FMT" backend 0x"VIRTIO_FEATURES_FMT"\n",
+             virtio_128bit_features_needed(vdev),
+             VIRTIO_FEATURES_PR(vdev->guest_features_array),
+             VIRTIO_FEATURES_PR(vdev->host_features_array),
+             VIRTIO_FEATURES_PR(vdev->backend_features_array));
     if (virtio_128bit_features_needed(vdev)) {
         uint64_t *val = vdev->guest_features_array;
 
@@ -3438,6 +3454,12 @@ virtio_load(VirtIODevice *vdev, QEMUFile *f, int version_id)
         }
     }
 
+    qemu_log("after load %d guest features 0x"
+             VIRTIO_FEATURES_FMT" host 0x"VIRTIO_FEATURES_FMT" backend 0x"VIRTIO_FEATURES_FMT"\n",
+             virtio_128bit_features_needed(vdev),
+             VIRTIO_FEATURES_PR(vdev->guest_features_array),
+             VIRTIO_FEATURES_PR(vdev->host_features_array),
+             VIRTIO_FEATURES_PR(vdev->backend_features_array));
     if (!virtio_device_started(vdev, vdev->status) &&
         !virtio_vdev_has_feature(vdev, VIRTIO_F_VERSION_1)) {
         vdev->start_on_kick = true;

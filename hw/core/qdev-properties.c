@@ -10,6 +10,9 @@
 #include "qemu/cutils.h"
 #include "qdev-prop-internal.h"
 #include "qom/qom-qobject.h"
+#include "qemu/log.h"
+#include "qemu/log-for-trace.h"
+#include "hw/virtio/virtio-net.h"
 
 void qdev_prop_set_after_realize(DeviceState *dev, const char *name,
                                   Error **errp)
@@ -192,6 +195,19 @@ static void bit64_prop_set(Object *obj, const Property *props, bool val)
         *p |= mask;
     } else {
         *p &= ~mask;
+    }
+
+    if (props->offset == offsetof(VirtIONet, host_features)) {
+        VirtIONet *n = (VirtIONet *)obj;
+        qemu_log("bit64_prop_set off %ld mask %lx features %lx ex " VIRTIO_FEATURES_FMT" \n",
+                 props->offset, mask, n->host_features,
+                 VIRTIO_FEATURES_PR(n->host_features_array));
+    }
+    if (props->offset == offsetof(VirtIONet, host_features_array) + sizeof(uint64_t)) {
+        VirtIONet *n = (VirtIONet *)obj;
+        qemu_log("bit64_prop_set off %ld bit %d features %lx ex " VIRTIO_FEATURES_FMT" \n",
+                props->offset, props->bitnr + 64, n->host_features,
+                VIRTIO_FEATURES_PR(n->host_features_array));
     }
 }
 

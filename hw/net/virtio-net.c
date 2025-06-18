@@ -48,6 +48,8 @@
 #include "net_rx_pkt.h"
 #include "hw/virtio/vhost.h"
 #include "system/qtest.h"
+#include "qemu/log.h"
+#include "qemu/log-for-trace.h"
 
 #define VIRTIO_NET_VM_VERSION    11
 
@@ -810,6 +812,7 @@ static void virtio_net_get_features(VirtIODevice *vdev, uint64_t *features,
                                 VIRTIO_NET_F_GUEST_UDP_TUNNEL_GSO_CSUM);
         virtio_clear_feature_ex(features,
                                 VIRTIO_NET_F_HOST_UDP_TUNNEL_GSO_CSUM);
+        qemu_log("virtio_net: claring offload features\n");
 
         virtio_clear_feature_ex(features, VIRTIO_NET_F_HASH_REPORT);
     }
@@ -832,9 +835,12 @@ static void virtio_net_get_features(VirtIODevice *vdev, uint64_t *features,
                                 VIRTIO_NET_F_GUEST_UDP_TUNNEL_GSO_CSUM);
         virtio_clear_feature_ex(features,
                                 VIRTIO_NET_F_HOST_UDP_TUNNEL_GSO_CSUM);
+        qemu_log("virtio_net: claring UDP_TUNNEL features\n");
     }
 
     if (!get_vhost_net(nc->peer)) {
+        qemu_log("virtio_net: no peer features " VIRTIO_FEATURES_FMT "\n",
+                 VIRTIO_FEATURES_PR(features));
         return;
     }
 
@@ -843,6 +849,8 @@ static void virtio_net_get_features(VirtIODevice *vdev, uint64_t *features,
     }
     vhost_net_get_features_ex(get_vhost_net(nc->peer), features);
     virtio_features_copy(vdev->backend_features_array, features);
+    qemu_log("virtio_net: backend features " VIRTIO_FEATURES_FMT "\n",
+             VIRTIO_FEATURES_PR(features));
 
     if (n->mtu_bypass_backend &&
             (n->host_features & 1ULL << VIRTIO_NET_F_MTU)) {
@@ -863,6 +871,8 @@ static void virtio_net_get_features(VirtIODevice *vdev, uint64_t *features,
     if (!virtio_has_feature(vdev->backend_features, VIRTIO_NET_F_CTRL_VQ)) {
         virtio_clear_feature_ex(features, VIRTIO_NET_F_GUEST_ANNOUNCE);
     }
+    qemu_log("virtio_net_get_features: final "VIRTIO_FEATURES_FMT"\n",
+             VIRTIO_FEATURES_PR(features));
 }
 
 static uint64_t virtio_net_bad_features(VirtIODevice *vdev)
@@ -877,6 +887,7 @@ static uint64_t virtio_net_bad_features(VirtIODevice *vdev)
     virtio_add_feature(&features, VIRTIO_NET_F_HOST_TSO6);
     virtio_add_feature(&features, VIRTIO_NET_F_HOST_ECN);
 
+    qemu_log("virtio_net: bad features %08lx\n", features);
     return features;
 }
 
@@ -925,6 +936,8 @@ virtio_net_guest_offloads_by_features(const uint64_t *features)
 uint64_t virtio_net_supported_guest_offloads(const VirtIONet *n)
 {
     VirtIODevice *vdev = VIRTIO_DEVICE(n);
+    qemu_log("virtio_net_supported_guest_offloads features " VIRTIO_FEATURES_FMT " offload %lx\n",
+             VIRTIO_FEATURES_PR(vdev->guest_features_array), virtio_net_guest_offloads_by_features(vdev->guest_features_array));
     return virtio_net_guest_offloads_by_features(vdev->guest_features_array);
 }
 
@@ -1039,6 +1052,10 @@ static void virtio_net_set_features(VirtIODevice *vdev,
         virtio_has_feature_ex(features, VIRTIO_NET_F_GUEST_TSO6);
     n->rss_data.redirect = virtio_has_feature_ex(features, VIRTIO_NET_F_RSS);
 
+    qemu_log("virtio_net_set_features features " VIRTIO_FEATURES_FMT " max_queue_pairs %d \n",
+             VIRTIO_FEATURES_PR(features),
+             n->max_queue_pairs);
+
     if (n->has_vnet_hdr) {
         n->curr_guest_offloads =
             virtio_net_guest_offloads_by_features(features);
@@ -1051,6 +1068,8 @@ static void virtio_net_set_features(VirtIODevice *vdev,
         if (!get_vhost_net(nc->peer)) {
             continue;
         }
+        qemu_log("virtio_net ack features "VIRTIO_FEATURES_FMT"\n",
+                 VIRTIO_FEATURES_PR(features));
         vhost_net_ack_features_ex(get_vhost_net(nc->peer), features);
 
         /*
@@ -1147,6 +1166,8 @@ static int virtio_net_handle_offloads(VirtIONet *n, uint8_t cmd,
             return VIRTIO_NET_ERR;
         }
 
+        qemu_log("virtio_net_handle_offloads %lx->%lx \n",
+                 n->curr_guest_offloads, offloads);
         n->curr_guest_offloads = offloads;
         virtio_net_apply_guest_offloads(n);
 
@@ -3816,6 +3837,9 @@ static void virtio_net_device_realize(DeviceState *dev, Error **errp)
     NetClientState *nc;
     int i;
 
+    qemu_log("virtio_net_device_realize host features " VIRTIO_FEATURES_FMT "\n",
+             VIRTIO_FEATURES_PR(n->host_features_array));
+
     if (n->net_conf.mtu) {
         n->host_features |= (1ULL << VIRTIO_NET_F_MTU);
     }
@@ -3851,6 +3875,9 @@ static void virtio_net_device_realize(DeviceState *dev, Error **errp)
         n->host_features |= (1ULL << VIRTIO_NET_F_STANDBY);
     }
 
+    qemu_log("virtio_net_device_realize host [2] features " VIRTIO_FEATURES_FMT
+             "\n",
+             VIRTIO_FEATURES_PR(n->host_features_array));
     virtio_net_set_config_size(n, n->host_features);
     virtio_init(vdev, VIRTIO_ID_NET, n->config_size);
 
