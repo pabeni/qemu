@@ -3105,6 +3105,7 @@ static int virtio_net_post_load_device(void *opaque, int version_id)
      * in the virtio_net_post_load_virtio callback.
      */
     n->saved_guest_offloads = n->curr_guest_offloads;
+    qemu_log("virtio_net_post_load_device saved %lx\n", n->saved_guest_offloads);
 
     virtio_net_set_queue_pairs(n);
 

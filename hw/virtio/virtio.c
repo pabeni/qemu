@@ -3272,6 +3272,7 @@ virtio_load(VirtIODevice *vdev, QEMUFile *f, int version_id)
 
     if (vdc->pre_load_queues) {
         ret = vdc->pre_load_queues(vdev);
+        qemu_log("virtio_load pre_load_queues %d\n", ret);
         if (ret) {
             return ret;
         }
@@ -3298,10 +3299,12 @@ virtio_load(VirtIODevice *vdev, QEMUFile *f, int version_id)
             error_report("VQ %d address 0x0 "
                          "inconsistent with Host index 0x%x",
                          i, vdev->vq[i].last_avail_idx);
+            qemu_log("virtio_load desc error\n");
             return -1;
         }
         if (k->load_queue) {
             ret = k->load_queue(qbus->parent, i, f);
+            qemu_log("virtio_load load_queues %d\n", ret);
             if (ret)
                 return ret;
         }
@@ -3311,6 +3314,7 @@ virtio_load(VirtIODevice *vdev, QEMUFile *f, int version_id)
 
     if (vdc->load != NULL) {
         ret = vdc->load(vdev, f, version_id);
+        qemu_log("virtio_load load %d\n", ret);
         if (ret) {
             return ret;
         }
@@ -3318,6 +3322,7 @@ virtio_load(VirtIODevice *vdev, QEMUFile *f, int version_id)
 
     if (vdc->vmsd) {
         ret = vmstate_load_state(f, vdc->vmsd, vdev, version_id);
+        qemu_log("virtio_load load state %d\n", ret);
         if (ret) {
             return ret;
         }
@@ -3325,6 +3330,7 @@ virtio_load(VirtIODevice *vdev, QEMUFile *f, int version_id)
 
     /* Subsections */
     ret = vmstate_load_state(f, &vmstate_virtio, vdev, 1);
+    qemu_log("virtio_load load state virtio %d\n", ret);
     if (ret) {
         return ret;
     }
@@ -3421,6 +3427,7 @@ virtio_load(VirtIODevice *vdev, QEMUFile *f, int version_id)
 
     if (vdc->post_load) {
         ret = vdc->post_load(vdev);
+        qemu_log("virtio_load post load %d\n", ret);
         if (ret) {
             return ret;
         }

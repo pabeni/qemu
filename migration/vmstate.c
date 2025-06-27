@@ -10,6 +10,7 @@
  * See the COPYING file in the top-level directory.
  */
 
+#include "qemu/log.h"
 #include "qemu/osdep.h"
 #include "migration.h"
 #include "migration/vmstate.h"
@@ -597,6 +598,7 @@ static int vmstate_subsection_load(QEMUFile *f, const VMStateDescription *vmsd,
         }
         sub_vmsd = vmstate_get_subsection(vmsd->subsections, idstr);
         if (sub_vmsd == NULL) {
+            qemu_log("vmstate_subsection_load name %s idstr %s\n", vmsd->name, idstr);
             trace_vmstate_subsection_load_bad(vmsd->name, idstr, "(lookup)");
             return -ENOENT;
         }
